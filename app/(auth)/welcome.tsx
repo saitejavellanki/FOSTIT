@@ -11,12 +11,18 @@ import {
   Dimensions,
   Keyboard,
   KeyboardAvoidingView,
+  ScrollView,
+  Text,
+  Modal
 } from 'react-native';
+const heights = Dimensions.get('screen').height
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Link } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+
   getAuth,
   signInWithEmailAndPassword,
   GoogleAuthProvider,
@@ -25,6 +31,8 @@ import {
 import { firestore } from '../../components/firebase/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 
+
+const width = Dimensions.get('window').width
 const WelcomeScreen: React.FC = () => {
   const router = useRouter();
   const auth = getAuth();
@@ -87,17 +95,11 @@ const WelcomeScreen: React.FC = () => {
         Alert.alert('Error', 'Please enter both email and password');
         return;
       }
-
+      await AsyncStorage.setItem('user', JSON.stringify({email:email, password:password}));
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
       if (userCredential.user) {
-        const isNewUser = userCredential.additionalUserInfo?.isNewUser;
-        if (isNewUser) {
-          await firestore.collection('users').doc(userCredential.user.uid).set({
-            email: userCredential.user.email,
-            createdAt: new Date(),
-          });
-        }
+       
         router.replace('/(tabs)/');
       }
     } catch (error) {
@@ -153,55 +155,32 @@ const WelcomeScreen: React.FC = () => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <ScrollView showsVerticalScrollIndicator={false}>
+<View 
+      
       style={styles.container}
     >
       <LinearGradient
-        colors={['#FC8019', '#FF6B6B']}
+        colors={['#1338be', '#FF6B6B']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       />
       
-      <Animated.View 
-        style={[
-          styles.header,
-          {
-            transform: [
-              {
-                translateY: logoAnimation,
-              },
-            ],
-          },
-        ]}
-      >
-        <Image 
-          source={Platform.OS === 'web' 
-            ? { uri: '/api/placeholder/120/120' }
-            : require('../../assets/images/1.png')}
-          style={styles.logo}
-        />
+     
+
+  
+
+            <View style={{}}>
         <ThemedText type="title" style={styles.title}>
-          FOST
+          Welcome Back
         </ThemedText>
-        <ThemedText style={styles.subtitle}>
+        <View style={{alignItems:'center', justifyContent:'space-around', flexDirection:'row', paddingVertical:14}}>
+        <ThemedText type='link' style={styles.subtitle}>
           Sign in to continue ordering your favorite food
         </ThemedText>
-      </Animated.View>
+        </View>
 
-      <Animated.View 
-        style={[
-          styles.authContainer,
-          {
-            transform: [
-              {
-                translateY: formAnimation,
-              },
-            ],
-          },
-        ]}
-      >
         <View style={styles.inputContainer}>
           <View style={styles.inputWrapper}>
             <MaterialIcons name="email" size={20} color="#666" style={styles.inputIcon} />
@@ -230,18 +209,18 @@ const WelcomeScreen: React.FC = () => {
             />
           </View>
 
-          <Animated.View style={{ transform: [{ scale: buttonAnimation }] }}>
             <TouchableOpacity
               style={[styles.button, loading && styles.disabledButton]}
               onPress={handleEmailSignIn}
               disabled={loading}
             >
               <MaterialIcons name="email" size={24} color="#fff" />
+             
               <ThemedText style={styles.buttonText}>
                 Sign in with Email
               </ThemedText>
             </TouchableOpacity>
-          </Animated.View>
+          
           
           {Platform.OS === 'web' && (
             <Animated.View style={{ transform: [{ scale: buttonAnimation }] }}>
@@ -258,20 +237,57 @@ const WelcomeScreen: React.FC = () => {
             </Animated.View>
           )}
         </View>
-      </Animated.View>
+    <View style={{marginTop:30, }}>
+    <Link href={'/(auth)/signup'} style={{alignItems:'center', justifyContent:'center', flexDirection:'row'}}>
 
-      {!isKeyboardVisible && (
-        <ThemedText style={styles.terms}>
+<ThemedText style={{  fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    paddingInline:5
+    }}>
+   New User?   
+  </ThemedText>
+  <Text style={{color:'#0492c2', fontSize:16, marginLeft:5, fontWeight:'500'}}>
+    Sign up!
+  </Text>
+              </Link>
+      </View> 
+     
+      <View style={{margin:20, alignItems:'center'}}>
+      <ThemedText style={styles.terms}>
           By continuing, you agree to our Terms of Service and Privacy Policy
         </ThemedText>
-      )}
-    </KeyboardAvoidingView>
+      </View>
+        </View>
+        
+        
+        
+      
+
+      
+       
+
+ 
+
+
+
+     
+       
+      
+    </View>
+    </ScrollView>
+    
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+height:heights, 
+flex:1,
+alignSelf:'center',
+padding:20, 
+paddingVertical:200
+
   },
   gradient: {
     position: 'absolute',
@@ -281,11 +297,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     opacity: 0.1,
   },
-  header: {
-    alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 40,
-  },
+  
   logo: {
     width: 120,
     height: 120,
@@ -300,20 +312,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 5,
     elevation: 5,
+    margin:10
   },
   title: {
     fontSize: 32,
     marginBottom: 12,
     textAlign: 'center',
     fontWeight: 'bold',
-    color: '#FC8019',
+    color: '#1338be',
     textShadowColor: 'rgba(0, 0, 0, 0.1)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
   subtitle: {
+    
     fontSize: 16,
-    color: '#666',
+    color: '#1338be',
     textAlign: 'center',
     maxWidth: '80%',
   },
@@ -330,6 +344,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     paddingHorizontal: 16,
+    marginVertical:6,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -352,7 +367,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FC8019',
+    backgroundColor: '#1338be',
     padding: 16,
     borderRadius: 12,
     gap: 12,
@@ -391,10 +406,8 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   terms: {
-    position: 'absolute',
-    bottom: 40,
-    left: 24,
-    right: 24,
+    padding:20,
+
     textAlign: 'center',
     color: '#666',
     fontSize: 12,

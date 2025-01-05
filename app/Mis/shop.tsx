@@ -74,7 +74,9 @@ const CartButton = () => {
   return (
     <TouchableOpacity 
       style={styles.cartButton}
-      onPress={() => router.push('/(tabs)/Cart')}
+      onPress={() =>{ router.push("/Mis/cart")
+        
+      }}
     >
       <MaterialIcons name="shopping-cart" size={24} color="#fff" />
       {itemCount > 0 && (

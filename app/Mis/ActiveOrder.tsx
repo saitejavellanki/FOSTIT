@@ -96,7 +96,7 @@ export const ActiveOrdersSection: React.FC = () => {
 
       {!loading && !error && activeOrders.length === 0 && (
         <View style={styles.messageContainer}>
-          <ThemedText>No active orders</ThemedText>
+          <ThemedText style={{color:'white'}}>No active orders</ThemedText>
         </View>
       )}
 
@@ -145,17 +145,19 @@ export const ActiveOrdersSection: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     marginVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: '#fc8019',
   },
   sectionTitle: {
     marginHorizontal: 16,
     marginBottom: 8,
     fontSize: 16,
     fontWeight: '600',
+    color:'#ffffff'
   },
   messageContainer: {
     padding: 16,
     alignItems: 'center',
+    color:"#ffffff"
   },
   errorText: {
     color: '#ff4d4d',

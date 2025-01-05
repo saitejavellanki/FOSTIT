@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import { collection, getDocs } from 'firebase/firestore';
 import { firestore } from '../../components/firebase/firebase';
 import { ActiveOrdersSection } from '../Mis/ActiveOrder';
+import Showcart from '@/components/Showcart';
 
 // Types remain the same
 interface ShopData {
@@ -146,14 +147,17 @@ const HomeScreen: React.FC = () => {
 
   return (
     <ThemedView style={styles.container}>
+    <Showcart/>  
       <ScrollView 
         style={styles.mainScroll}
-        stickyHeaderIndices={[1]} // Makes search bar sticky
+      
       >
-        <View style={styles.locationHeader}>
-          <MaterialIcons name="location-on" size={24} color="#FC8019" />
+
+<View style={{backgroundColor:'#FC8019', marginTop:20, borderBottomLeftRadius:30, paddingBottom:20, borderBottomRightRadius:30, elevation:0.5}}>
+<View style={styles.locationHeader}>
+          <MaterialIcons name="location-on" size={24} color="white" />
           <View>
-            <ThemedText type="defaultSemiBold">Home</ThemedText>
+            <ThemedText style={{color:'#ffffff'}} type="defaultSemiBold">Home</ThemedText>
             <ThemedText style={[
               styles.addressText,
               locationState.error && styles.errorText
@@ -162,9 +166,8 @@ const HomeScreen: React.FC = () => {
             </ThemedText>
           </View>
         </View>
-
         <View style={styles.searchWrapper}>
-          {/* <View style={styles.searchContainer}>
+           <View style={styles.searchContainer}>
             <TouchableOpacity 
               style={styles.searchBar}
               onPress={() => router.push('/')}
@@ -177,13 +180,16 @@ const HomeScreen: React.FC = () => {
               />
             </TouchableOpacity>
             <TouchableOpacity style={styles.filterButton}>
-              <MaterialIcons name="tune" size={24} color="#666" />
+              <MaterialIcons name="tune" size={24} color="#ffffff" />
             </TouchableOpacity>
-          </View> */}
+          </View> 
         </View>
-
         <ActiveOrdersSection />
 
+</View>
+        
+       
+      
         <View style={styles.contentContainer}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.offersScroll}>
             {[1, 2, 3].map((item) => (
@@ -229,7 +235,9 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    
+    paddingTop:20,
+    
   },
   mainScroll: {
     flex: 1,
@@ -239,14 +247,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     gap: 8,
-    backgroundColor: '#fff',
+  
   },
   addressText: {
     fontSize: 12,
-    color: '#666',
+    color: '#ffffff',
   },
   searchWrapper: {
-    backgroundColor: '#fff',
+    
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
@@ -262,7 +270,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
-    padding: 8,
+    margin: 8,
     gap: 8,
   },
   searchInput: {

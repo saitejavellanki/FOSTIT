@@ -16,6 +16,20 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "*.webapp.io",
+              "pathPrefix": "/records"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "package": "com.tejvellank.fost"
     },
     "web": {
@@ -43,7 +57,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "5c9ec519-6dc3-4857-b4b5-5b5377855199"
+        "projectId": "1dfc9a9a-ccba-41d4-b7e7-1a532105624b"
       }
     }
   }

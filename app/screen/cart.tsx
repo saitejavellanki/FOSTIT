@@ -10,7 +10,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { WebView } from 'react-native-webview';
 import { generateHash } from '../Utils/payuHash'; // You'll need to create this utility
 // import Config from 'react-native-config'; // For environment variables
-
+import * as Linking from "expo-linking"
 interface PayUConfig {
     merchantKey: string;
     merchantSalt: string;
@@ -58,11 +58,15 @@ const CartScreen: React.FC = () => {
 
   useEffect(() => {
     loadCartItems();
+    userDetails()
   }, []);
-
+const userDetails = async()=>{
+  
+}
   const loadCartItems = async () => {
     try {
       const cartString = await AsyncStorage.getItem('cart');
+      
       if (cartString) {
         const items = JSON.parse(cartString);
         setCartItems(items);
@@ -376,6 +380,7 @@ const CartScreen: React.FC = () => {
           <script>
             window.onload = function() {
               document.getElementById('payuForm').submit();
+
             }
           </script>
         </body>
@@ -389,11 +394,36 @@ const CartScreen: React.FC = () => {
         style={styles.webview}
         javaScriptEnabled={true}
         domStorageEnabled={true}
+         useWebView2={true          
+         }        
+         
         onError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.warn('WebView error: ', nativeEvent);
           Alert.alert('Error', 'Failed to load payment gateway');
         }}
+       onShouldStartLoadWithRequest={(event)=>{
+console.warn("error",event)
+        if (event.url.startsWith("intent:")){
+  Alert.alert(event.url)
+  return false
+}
+return true
+       }}
+        
+        javaScriptCanOpenWindowsAutomatically={true}
+        onOpenWindow={(syntheticEvent:any)=>{
+          const { nativeEvent } = syntheticEvent;
+          const {targetUrl} = nativeEvent;
+        
+        return
+        }}
+setSupportMultipleWindows={true}
+allowFileAccess={true}
+allowUniversalAccessFromFileURLs={true}
+allowsBackForwardNavigationGestures={true}
+allowingReadAccessToURL={true}
+
         onHttpError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.warn('WebView HTTP error: ', nativeEvent);
@@ -641,6 +671,9 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
+    zIndex:1,
+    
+    
   },
   loadingOverlay: {
     position: 'absolute',

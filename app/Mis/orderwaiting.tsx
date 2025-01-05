@@ -220,7 +220,8 @@ const OrderWaitingScreen: React.FC = () => {
     <ThemedView style={styles.container}>
       <ScrollView>
       <View style={styles.statusCard}>
-          <MaterialIcons name={statusInfo.icon} size={48} color={statusInfo.color} />
+        
+          <MaterialIcons  name={statusInfo.icon} size={48} color={statusInfo.color} />
           <ThemedText style={[styles.statusTitle, { color: statusInfo.color }]}>
             {statusInfo.title}
           </ThemedText>

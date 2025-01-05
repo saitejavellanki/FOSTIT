@@ -1,6 +1,6 @@
 // payuHash.ts
 import sha512 from 'crypto-js/sha512';
-
+import React from 'react';
 interface PayUHashData {
   txnid: string;
   amount: string;
