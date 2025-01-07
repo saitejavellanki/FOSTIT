@@ -1,34 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Image, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { 
+  ScrollView, 
+  View, 
+  StyleSheet, 
+  TextInput, 
+  TouchableOpacity, 
+  Dimensions, 
+  Platform, 
+  SafeAreaView,
+  RefreshControl,
+  Image,
+} from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import { collection, getDocs } from 'firebase/firestore';
-import { firestore } from '../../components/firebase/firebase';
 import { ActiveOrdersSection } from '../Mis/ActiveOrder';
 import Showcart from '@/components/Showcart';
+import AvailableShops from '../Mis/AvailableShops';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import PreviousOrders from '../Mis/PreviousOrders';
+import { PullToRefreshScrollView } from '@/components/PullToRefreshScrollView';
+import Ads from '@/components/Ads';
 
-// Types remain the same
-interface ShopData {
-  id: string;
-  name: string;
-  imageUrl: string;
-  createdAt: any;
-  vendorId: string;
-}
-
-interface RestaurantCardProps {
-  name: string;
-  imageUrl: string;
-  id: string;
-}
-
-interface CategoryButtonProps {
-  label: string;
-  icon?: string;
-}
 
 interface LocationState {
   address: string;
@@ -36,227 +31,222 @@ interface LocationState {
   error: string | null;
 }
 
-const RestaurantCard: React.FC<RestaurantCardProps> = ({ name, imageUrl, id }) => {
-  const router = useRouter();
-
-  return (
-    <TouchableOpacity 
-      style={styles.restaurantCard}
-      onPress={() => router.push({
-        pathname: '/Mis/shop',
-        params: { shopId: id }
-      })}
-    >
-      <Image 
-        source={{ uri: imageUrl }}
-        style={styles.restaurantImage}
-      />
-      <View style={styles.restaurantInfo}>
-        <ThemedText type="subtitle">{name}</ThemedText>
-        <View style={styles.restaurantMeta}>
-          {/* <View style={styles.ratingPill}>
-            <ThemedText style={styles.ratingText}>New</ThemedText>
-          </View> */}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-};
-
-const CategoryButton: React.FC<CategoryButtonProps> = ({ label }) => (
-  <TouchableOpacity style={styles.categoryButton}>
-    <Image 
-      source={{ uri: '/api/placeholder/60/60' }}
-      style={styles.categoryIcon}
-    />
-    <ThemedText style={styles.categoryLabel}>{label}</ThemedText>
-  </TouchableOpacity>
-);
-
 const HomeScreen: React.FC = () => {
   const router = useRouter();
-  const [shops, setShops] = useState<ShopData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [locationState, setLocationState] = useState<LocationState>({
     address: 'Loading location...',
     loading: true,
     error: null,
   });
 
-  // Fetch shops and location effects remain the same
-  useEffect(() => {
-    const fetchShops = async () => {
-      try {
-        const shopsCollection = collection(firestore, 'shops');
-        const shopsSnapshot = await getDocs(shopsCollection);
-        const shopsData = shopsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as ShopData[];
-        
-        setShops(shopsData);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching shops:', error);
-        setLoading(false);
-      }
-    };
-
-    fetchShops();
-  }, []);
-
-  useEffect(() => {
-    const getLocation = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setLocationState({
-            address: 'Location access denied',
-            loading: false,
-            error: 'Permission to access location was denied',
-          });
-          return;
-        }
-
-        const location = await Location.getCurrentPositionAsync({});
-        const addresses = await Location.reverseGeocodeAsync({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-
-        if (addresses && addresses.length > 0) {
-          const address = addresses[0];
-          const formattedAddress = `${address.street || ''}, ${address.city || ''}, ${address.region || ''}`;
-          setLocationState({
-            address: formattedAddress,
-            loading: false,
-            error: null,
-          });
-        }
-      } catch (error) {
+  const getLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
         setLocationState({
-          address: 'Location unavailable',
+          address: 'Location access denied',
           loading: false,
-          error: error instanceof Error ? error.message : 'Failed to get location',
+          error: 'Permission to access location was denied',
+        });
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      const addresses = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      if (addresses && addresses.length > 0) {
+        const address = addresses[0];
+        const formattedAddress = `${address.street || ''}, ${address.city || ''}, ${address.region || ''}`;
+        setLocationState({
+          address: formattedAddress,
+          loading: false,
+          error: null,
         });
       }
-    };
+    } catch (error) {
+      setLocationState({
+        address: 'Location unavailable',
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to get location',
+      });
+    }
+  };
 
+  useEffect(() => {
     getLocation();
   }, []);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        getLocation(),
+      ]);
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Calculate bottom padding to account for tab bar height
+  const TAB_BAR_HEIGHT = 60;
+  const bottomPadding = Platform.OS === 'ios' ? 
+    TAB_BAR_HEIGHT + insets.bottom : 
+    TAB_BAR_HEIGHT;
+
   return (
-    <ThemedView style={styles.container}>
-    <Showcart/>  
-      <ScrollView 
-        style={styles.mainScroll}
-      
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: '#FC8019' }]}>
+      <ThemedView style={styles.container}>
+        <Showcart />
+        <PullToRefreshScrollView
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        scrollViewProps={{
+          showsVerticalScrollIndicator: false,
+          contentContainerStyle: [
+            styles.scrollContentContainer,
+            { paddingBottom: bottomPadding + 20 }
+          ],
+        }}
       >
-
-<View style={{backgroundColor:'#FC8019', marginTop:20, borderBottomLeftRadius:30, paddingBottom:20, borderBottomRightRadius:30, elevation:0.5}}>
-<View style={styles.locationHeader}>
-          <MaterialIcons name="location-on" size={24} color="white" />
-          <View>
-            <ThemedText style={{color:'#ffffff'}} type="defaultSemiBold">Home</ThemedText>
-            <ThemedText style={[
-              styles.addressText,
-              locationState.error && styles.errorText
-            ]}>
-              {locationState.error ? 'Location unavailable' : locationState.address}
-            </ThemedText>
-          </View>
-        </View>
-        <View style={styles.searchWrapper}>
-           <View style={styles.searchContainer}>
-            <TouchableOpacity 
-              style={styles.searchBar}
-              onPress={() => router.push('/')}
-            >
-              <MaterialIcons name="search" size={20} color="#666" />
-              <TextInput 
-                placeholder="Search for restaurants and food"
-                style={styles.searchInput}
-                editable={false}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.filterButton}>
-              <MaterialIcons name="tune" size={24} color="#ffffff" />
-            </TouchableOpacity>
-          </View> 
-        </View>
-        <ActiveOrdersSection />
-
+          <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
+          <View style={styles.locationHeader}>
+  <View style={styles.locationContainer}>
+    <View style={styles.locationIcon}>
+      <MaterialIcons name="location-on" size={20} color="white" />
+    </View>
+    <View>
+      <ThemedText style={styles.locationTitle} type="defaultSemiBold">
+        Location
+      </ThemedText>
+      <ThemedText 
+        style={[styles.addressText, locationState.error && styles.errorText]}
+        numberOfLines={1}
+      >
+        {locationState.error ? 'Location unavailable' : locationState.address}
+      </ThemedText>
+    </View>
+  </View>
+  <View style={styles.logoContainer}>
+  <Image 
+  source={require('../../assets/images/Fos_t-removebg-preview.png')} 
+  style={styles.logoImage}
+/>
+  </View>
 </View>
-        
-       
-      
-        <View style={styles.contentContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.offersScroll}>
-            {[1, 2, 3].map((item) => (
-              <View key={item} style={styles.offerCard}>
-                <MaterialIcons name="local-offer" size={20} color="#FC8019" />
-                <ThemedText style={styles.offerText}>50% OFF up to ₹100</ThemedText>
-              </View>
-            ))}
-          </ScrollView>
 
-          {/* <View style={styles.categoriesSection}>
-            <ThemedText type="subtitle" style={styles.sectionTitle}>What's on your mind?</ThemedText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {['Pizza', 'Burgers', 'Biryani', 'Chinese', 'South Indian'].map((category) => (
-                <CategoryButton key={category} label={category} />
-              ))}
-            </ScrollView>
-          </View> */}
-
-          <View style={styles.restaurantsSection}>
-            <ThemedText type="subtitle" style={styles.sectionTitle}>Available Shops</ThemedText>
-            {loading ? (
-              <ThemedText>Loading shops...</ThemedText>
-            ) : shops.length === 0 ? (
-              <ThemedText>No shops available</ThemedText>
-            ) : (
-              shops.map((shop) => (
-                <RestaurantCard
-                  key={shop.id}
-                  id={shop.id}
-                  name={shop.name}
-                  imageUrl={shop.imageUrl}
-                />
-              ))
-            )}
+<View style={styles.searchContainer}>
+            <View style={styles.searchBar}>
+              <MaterialIcons name="search" size={20} color="#666" />
+              <TextInput
+                placeholder="Search for restaurants"
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholderTextColor="#666"
+              />
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </ThemedView>
+
+            <ActiveOrdersSection />
+          </View>
+          <Ads/>
+          <View style={[styles.content, { paddingBottom: bottomPadding }]}>
+            
+
+          <AvailableShops searchQuery={searchQuery} />
+            <View style={styles.offersContainer}>
+              <View style={styles.sectionHeaderContainer}>
+                <ThemedText type="subtitle" style={styles.sectionTitle}>
+                  Best Offers
+                </ThemedText>
+                
+              </View>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                contentContainerStyle={styles.offersScrollContent}
+              >
+                {[1, 2, 3].map((item) => (
+                  <TouchableOpacity 
+                    key={item} 
+                    style={styles.offerCard}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="local-offer" size={20} color="#FC8019" />
+                    <ThemedText style={styles.offerText}>50% OFF up to ₹100</ThemedText>
+                    <ThemedText style={styles.offerSubtext}>Valid on all orders</ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+            <View style={styles.previousOrdersContainer}>
+              <PreviousOrders />
+            </View>
+            
+          </View>
+          
+          </PullToRefreshScrollView>
+          
+      </ThemedView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    
-    paddingTop:20,
-    
+    backgroundColor: '#f8f8f8',
   },
   mainScroll: {
     flex: 1,
+  },
+  scrollContentContainer: {
+    flexGrow: 1,
+  },
+  header: {
+    backgroundColor: '#FC8019',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   locationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    gap: 8,
-  
+    gap: 12,
+  },
+  locationIcon: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 8,
+    borderRadius: 12,
+  },
+  locationTitle: {
+    color: '#ffffff',
+    fontSize: 14,
+    opacity: 0.9,
   },
   addressText: {
-    fontSize: 12,
+    fontSize: 16,
     color: '#ffffff',
-  },
-  searchWrapper: {
-    
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    fontWeight: '600',
+    maxWidth: Dimensions.get('window').width - 100,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -264,95 +254,115 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
   },
+  logoContainer: {
+    paddingLeft: 36,
+    justifyContent: 'center', // Centers the logo vertically
+  },
+  
+  logoImage: {
+    width: 100, // Increased from 100
+    height: 45,  // Increased from 30 to maintain aspect ratio
+    resizeMode: 'contain',
+  },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    margin: 8,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 12,
     gap: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
+    color: '#333',
   },
   filterButton: {
-    padding: 8,
+    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
   },
-  contentContainer: {
-    paddingBottom: 24,
+  content: {
+    flex: 1,
+    paddingTop: 24,
   },
-  offersScroll: {
+  offersContainer: {
     padding: 16,
-  },
-  offerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff8f3',
-    padding: 16,
-    borderRadius: 8,
-    marginRight: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#ffeedd',
-  },
-  offerText: {
-    color: '#FC8019',
-    fontWeight: '600',
-  },
-  categoriesSection: {
-    padding: 16,
-  },
-  sectionTitle: {
-    marginBottom: 16,
-  },
-  categoryButton: {
-    alignItems: 'center',
-    marginRight: 24,
-  },
-  categoryIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  categoryLabel: {
-    marginTop: 8,
-    fontSize: 12,
-  },
-  restaurantsSection: {
-    padding: 16,
-  },
-  restaurantCard: {
     marginBottom: 24,
   },
-  restaurantImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 12,
+  offersScrollContent: {
+    paddingRight: 16,
   },
-  restaurantInfo: {
-    gap: 4,
+  sectionHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  restaurantMeta: {
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+  },
+  viewAllText: {
+    color: '#FC8019',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  offerCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 16,
+    marginRight: 12,
+    gap: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    width: Dimensions.get('window').width * 0.6,
+  },
+  offerText: {
+    color: '#333',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  offerSubtext: {
+    color: '#666',
+    fontSize: 12,
+  },
+  errorText: {
+    color: '#ff6b6b',
+  },
+  previousOrdersContainer: {
+    marginBottom: 20,
+  },
+  
+  
+  locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1, // Takes available space but allows logo to show
   },
-  ratingPill: {
-    backgroundColor: '#48c479',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+  
+  
+  
+ 
+  
+  logoText: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
-  ratingText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  errorText: {
-    color: '#ff0000',
-  },
+  
 });
 
 export default HomeScreen;
