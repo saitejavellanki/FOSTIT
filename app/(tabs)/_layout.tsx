@@ -1,16 +1,42 @@
 import { Tabs } from 'expo-router';
-import { useColorScheme, Image, Platform } from 'react-native';
+import { useColorScheme, Image, Platform, ActivityIndicator, View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { auth } from '../../components/firebase/firebase';
 import React from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { createUserWithEmailAndPassword,  getAuth, updateCurrentUser, updateProfile, updatePhoneNumber } from 'firebase/auth';
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const [userPhotoURL, setUserPhotoURL] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
+const auth = getAuth()  
+const [loading, setLoading] = useState<Boolean>(false);
+const [auths, setAuths] = useState<string | null>(null);
+useEffect(()=>{
+const getuser = async ()=>{
+const ram:any = await AsyncStorage.getItem('auth')
+const hello = JSON.parse(ram)
+if(ram){
 
+  const currentUser = auth.currentUser;
+
+  await updateProfile(currentUser,{displayName:hello.name})
+
+
+  await AsyncStorage.removeItem('auth')
+ setLoading(true)
+}else{
+  setLoading(true)
+}
+
+
+
+}
+getuser()
+},[])
   useEffect(() => {
     const currentUser = auth.currentUser;
     if (currentUser?.photoURL) {
@@ -29,7 +55,18 @@ export default function TabsLayout() {
   }, []);
 
   return (
-    <Tabs
+    <>
+    {!loading && (
+      <View style={{flex:1, alignItems:'center', justifyContent:'center'}}>
+        <Text style={{fontSize:20, fontWeight:'600', color:'#fc8019'}}>
+          Loading, please wait
+        </Text>
+      <ActivityIndicator size={46} color='#fc8019' />
+      </View>
+    )}
+    {loading && (
+      <>
+      <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#fc8019',
         tabBarInactiveTintColor: colorScheme === 'dark' ? '#ffffff' : '#3d4152',
@@ -68,7 +105,11 @@ export default function TabsLayout() {
               style={{ marginTop: 4 }}
             />
           ),
+          
+        freezeOnBlur:true
+          
         }}
+        
       />
       <Tabs.Screen
         name="profile"
@@ -86,5 +127,9 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+      </>
+    )}
+    </>
+    
   );
 }

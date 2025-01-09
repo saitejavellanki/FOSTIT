@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     zIndex: 999,
     paddingHorizontal: 16,
     backgroundColor: 'transparent',
-    marginBottom:-36,
+    marginBottom:-26,
   },
   cartButton: {
     backgroundColor: '#fc8019',

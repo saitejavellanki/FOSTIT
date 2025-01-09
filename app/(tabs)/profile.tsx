@@ -17,6 +17,7 @@ import { auth, firestore } from '@/components/firebase/firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface OrderItem {
   name: string;
@@ -91,6 +92,7 @@ const ProfileScreen: React.FC = () => {
   const [ongoingOrders, setOngoingOrders] = useState<Order[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const user = auth.currentUser;
+  
 
   const isDarkMode = colorScheme === 'dark';
   const backgroundColor = isDarkMode ? '#1c1c1c' : '#f8f8f8';
@@ -150,6 +152,9 @@ const ProfileScreen: React.FC = () => {
     }
   };
 
+  useEffect(()=>{
+
+  },[])
   useEffect(() => {
     fetchOrders();
   }, [user]);
@@ -232,6 +237,7 @@ const ProfileScreen: React.FC = () => {
   const handleSignOut = async () => {
     try {
       await auth.signOut();
+      await AsyncStorage.removeItem('user')
       router.replace('/');
     } catch (error) {
       console.error('Error signing out:', error);
@@ -263,10 +269,11 @@ const ProfileScreen: React.FC = () => {
       <Ionicons name="person-circle" size={80} color="#fff" />
     </View>
   )}
+    <ThemedText style={styles.email}>hy! {user?.displayName}</ThemedText>
   <ThemedText style={styles.email}>{user?.email}</ThemedText>
   
   {/* Add this new enhanced level container */}
-  
+
 
   <TouchableOpacity 
     style={styles.signOutButton}

@@ -1,12 +1,13 @@
 // styles.ts
 import { StyleSheet, Dimensions } from 'react-native';
 
-const { width } = Dimensions.get('window');
+const  height  = Dimensions.get('window').height;
 
 export const styles = StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: '#fff',
+      zIndex:1
     },
     loadingContainer: {
       flex: 1,
@@ -20,6 +21,7 @@ export const styles = StyleSheet.create({
       padding: 20,
     },
     shopHeader: {
+      flex:1,
       width: '100%',
       height: 200,
     },
@@ -172,12 +174,12 @@ export const styles = StyleSheet.create({
     },
     cartButton: {
       position: 'absolute',
-      top: 16,
+      bottom: 16,
       right: 16,
       backgroundColor: '#fc8019',
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 64,
+      height: 64,
+      borderRadius: 32,
       justifyContent: 'center',
       alignItems: 'center',
       shadowColor: '#000',

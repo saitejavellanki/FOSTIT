@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, View, StyleSheet, TouchableOpacity, Alert, ActivityIndicator,SafeAreaView  } from 'react-native';
+import { ScrollView, View, StyleSheet, TouchableOpacity, Alert, ActivityIndicator,SafeAreaView, Image  } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -399,6 +399,7 @@ allowsBackForwardNavigationGestures={true}
       />
     );
   }
+  
   return (
     <SafeAreaView style={styles.safeArea}>
     <ThemedView style={styles.container}>
@@ -419,9 +420,18 @@ allowsBackForwardNavigationGestures={true}
       
       <ScrollView style={styles.itemsList} showsVerticalScrollIndicator={false}>
         {cartItems.map((item) => (
+          
           <View key={item.id} style={styles.cartItem}>
             <View style={styles.itemInfo}>
-              <View style={styles.itemHeader}>
+            <View  >
+            
+             <View style={styles.itemHeader}>
+                  <View>
+             <Image
+                          source={{ uri: item.imageUrl }}
+                          style={{height:70, width:70, borderRadius:20,}}
+                        />
+            </View>
                 <ThemedText style={styles.itemName}>{item.name}</ThemedText>
                 <View style={[
                   styles.dietTypeBadge,
@@ -435,7 +445,10 @@ allowsBackForwardNavigationGestures={true}
                   </ThemedText>
                 </View>
               </View>
-
+            </View>
+           
+             
+               
               {item.shopName && (
                 <ThemedText style={styles.shopName}>
                   <MaterialIcons name="store" size={14} color="#666" /> {item.shopName}
@@ -593,12 +606,14 @@ const styles = StyleSheet.create({
   itemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent:'space-between',
     marginBottom: 8,
   },
   itemName: {
     fontSize: 16,
     fontWeight: '600',
     flex: 1,
+    paddingHorizontal:10
   },
   shopName: {
     fontSize: 13,

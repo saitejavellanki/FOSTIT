@@ -25,6 +25,7 @@ export default function RootLayout() {
         <Stack screenOptions={{headerShown:false}}>
           <Stack.Screen name="welcome" options={{headerShown:false}}  />
           <Stack.Screen name="signup" options={{ headerShown: false }} />
+<Stack.Screen name='Forgotpw' options={{headerShown:false}}/>
         </Stack>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       </ThemeProvider>

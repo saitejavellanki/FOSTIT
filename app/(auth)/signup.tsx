@@ -16,26 +16,34 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SignupProps {}
 
 const Signup: React.FC<SignupProps> = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false);
   const auth = getAuth();
 
   const handleEmailSignIn = async () => {
     try {
       setLoading(true);
-      if (!email || !password) {
-        Alert.alert('Error', 'Please enter both email and password');
+      if (!email || !password||!name||!phone) {
+        Alert.alert('Error', 'Please enter all valid crednentials');
         return;
       }
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      if (userCredential.user) {
-        console.log(userCredential.user);
+      if (phone.length !==10){
+        Alert.alert('Error', 'Please enter 10 digit number');
+        return;
       }
+      
+       await createUserWithEmailAndPassword(auth, email, password)
+      await AsyncStorage.setItem('user', JSON.stringify({email, password}));
+      await AsyncStorage.setItem('auth', JSON.stringify({phone, name, issignup:true}));
+      
     } catch (error) {
       Alert.alert('Error', error.message);
     } finally {
@@ -78,12 +86,42 @@ const Signup: React.FC<SignupProps> = () => {
 
           <View style={styles.inputContainer}>
             <View style={styles.inputWrapper}>
+              <MaterialIcons name='person' size={20} color="#FF5A1F" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Name"
+                placeholderTextColor="#666"
+                value={name}
+                onChangeText={setName}
+                autoComplete='name'
+                keyboardType="default"
+                autoCapitalize="none"
+                
+              />
+            </View>
+            <View style={styles.inputWrapper}>
+              <MaterialIcons name="phone" size={20} color="#FF5A1F" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Phoneno"
+                placeholderTextColor="#666"
+                value={phone}
+                autoComplete='tel-device'
+                onChangeText={setPhone}
+                keyboardType='number-pad'
+                maxLength={10}
+                
+                
+              />
+            </View>
+            <View style={styles.inputWrapper}>
               <MaterialIcons name="email" size={20} color="#FF5A1F" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Email"
                 placeholderTextColor="#666"
                 value={email}
+                autoComplete='email'
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -99,6 +137,7 @@ const Signup: React.FC<SignupProps> = () => {
                 placeholderTextColor="#666"
                 value={password}
                 onChangeText={setPassword}
+                autoComplete='password'
                 secureTextEntry
                 editable={!loading}
               />

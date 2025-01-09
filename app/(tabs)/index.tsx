@@ -10,11 +10,12 @@ import {
   SafeAreaView,
   RefreshControl,
   Image,
+  
 } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect, router, useNavigation  } from 'expo-router';
 import * as Location from 'expo-location';
 import { ActiveOrdersSection } from '../Mis/ActiveOrder';
 import Showcart from '@/components/Showcart';
@@ -23,6 +24,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PreviousOrders from '../Mis/PreviousOrders';
 import { PullToRefreshScrollView } from '@/components/PullToRefreshScrollView';
 import Ads from '@/components/Ads';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 
 interface LocationState {
@@ -31,7 +34,25 @@ interface LocationState {
   error: string | null;
 }
 
+interface MenuItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  category: string;
+  isActive: boolean;
+  dietType: 'veg' | 'non-veg';
+  shopId: string;
+  vendorId: string;
+}
+
+interface CartItem extends MenuItem {
+  quantity: number;
+  shopName?: string;
+}
 const HomeScreen: React.FC = () => {
+  const navigation = useNavigation()
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
@@ -41,6 +62,54 @@ const HomeScreen: React.FC = () => {
     loading: true,
     error: null,
   });
+
+
+  useEffect(()=> {
+    if(navigation.isFocused()){
+      setIsitemsearched(false)
+      const hello = async()=>{
+        const cartString = await AsyncStorage.getItem('cart');
+        if (cartString) {
+          const cart = JSON.parse(cartString);
+          const count = cart.reduce((total: number, item: CartItem) => total + item.quantity, 0);
+          setLength(count);
+       
+        }else{
+          setLength(0)
+         
+        }
+      
+      }
+      hello()
+    
+    }
+  },[navigation.isFocused()])
+ const [isCart, setIsCart] = useState(false);
+  const [length, setLength] = useState(0);
+
+  useEffect(() => {
+    const getCartCount = async () => {
+      try {
+        const cartString = await AsyncStorage.getItem('cart');
+        if (cartString) {
+          const cart = JSON.parse(cartString);
+          const count = cart.reduce((total: number, item: CartItem) => total + item.quantity, 0);
+          setLength(count);
+           
+        }
+      } catch (error) {
+        console.error('Error getting cart count:', error);
+      }
+    };
+
+    const interval = setInterval(getCartCount, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+ 
+ 
+
+
 
   const getLocation = async () => {
     try {
@@ -101,10 +170,27 @@ const HomeScreen: React.FC = () => {
     TAB_BAR_HEIGHT + insets.bottom : 
     TAB_BAR_HEIGHT;
 
+const [isitemsearched, setIsitemsearched] = useState(false)
+
+
+const searchfunction =(text:any)=>{
+  setSearchQuery(text)
+  if (text.length>0){
+    setIsitemsearched(true)
+
+  }else{
+    setIsitemsearched(false)
+  }
+}
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: '#FC8019' }]}>
       <ThemedView style={styles.container}>
-        <Showcart />
+        {length>0 && (
+          <>
+     <Showcart  />
+          </>
+        )}
+   
         <PullToRefreshScrollView
         refreshing={refreshing}
         onRefresh={onRefresh}
@@ -149,15 +235,25 @@ const HomeScreen: React.FC = () => {
                 placeholder="Search for restaurants"
                 style={styles.searchInput}
                 value={searchQuery}
-                onChangeText={setSearchQuery}
+                onChangeText={(text:any)=>searchfunction(text)}
                 placeholderTextColor="#666"
               />
             </View>
           </View>
-
-            <ActiveOrdersSection />
+        {!isitemsearched && (
+          <>
+           <ActiveOrdersSection />
+          </>
+        )} 
+           
           </View>
+         
+         {!isitemsearched && (
+          <>
           <Ads/>
+          </>
+         )}
+          
           <View style={[styles.content, { paddingBottom: bottomPadding }]}>
             
 

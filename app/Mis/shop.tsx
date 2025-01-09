@@ -13,8 +13,9 @@ import { CartButton } from '../../components/CartButton';
 import { CategorySection } from '../../components/CategorySection';
 import { styles } from './styles';
 import { ShopDetails, MenuItem, CartItem } from './types';
-
+import { useNavigation } from 'expo-router';
 const ShopScreen: React.FC = () => {
+  const navigation = useNavigation()
   const { shopId } = useLocalSearchParams();
   const [shopDetails, setShopDetails] = useState<ShopDetails | null>(null);
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -25,6 +26,7 @@ const ShopScreen: React.FC = () => {
   const [modalVisible, setModalVisible] = useState<boolean>(false);
 
   useEffect(() => {
+    
     const fetchShopData = async () => {
       if (!shopId || typeof shopId !== 'string') {
         setError('Invalid shop ID');
@@ -95,9 +97,8 @@ const ShopScreen: React.FC = () => {
       const existingItemIndex = cart.findIndex(
         (cartItem) => cartItem.id === item.id
       );
-
       if (existingItemIndex > -1) {
-        cart[existingItemIndex].quantity = (cart[existingItemIndex].quantity || 1) + 1;
+        cart[existingItemIndex].quantity = (cart[existingItemIndex].quantity || 1) +1 ;
       } else {
         cart.push({
           ...item,
@@ -127,14 +128,20 @@ const ShopScreen: React.FC = () => {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView>
+      <CartButton navigation = {navigation} />
+     
+
+      <ScrollView >
+      <TouchableOpacity onPress={()=>navigation.goBack} style={{position:'relative',zIndex:1, top:30, left:5}}>
+                  <MaterialIcons name="arrow-back" size={28} color="#2b3240" />
+                </TouchableOpacity>
         {shopDetails && (
           <View style={styles.shopHeader}>
             <Image
               source={{ uri: shopDetails.imageUrl }}
               style={styles.shopImage}
             />
-            <CartButton />
+            
             <View style={styles.shopInfo}>
               <ThemedText>{shopDetails.name}</ThemedText>
               {shopDetails.description && (
