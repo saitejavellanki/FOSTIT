@@ -51,7 +51,7 @@ const ItemCard: React.FC<{
   index: number;
 }> = ({ item, imageUrl, onPress, index }) => {
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const translateY = React.useRef(new Animated.Value(50)).current;
+  const translateX = React.useRef(new Animated.Value(50)).current; // Changed from translateY to translateX
 
   React.useEffect(() => {
     Animated.parallel([
@@ -61,7 +61,7 @@ const ItemCard: React.FC<{
         delay: index * 100,
         useNativeDriver: true,
       }),
-      Animated.timing(translateY, {
+      Animated.timing(translateX, { // Animation now moves horizontally
         toValue: 0,
         duration: 500,
         delay: index * 100,
@@ -76,7 +76,7 @@ const ItemCard: React.FC<{
         styles.itemCard,
         {
           opacity: fadeAnim,
-          transform: [{ translateY }],
+          transform: [{ translateX }],
         },
       ]}
       onPress={onPress}
@@ -158,7 +158,7 @@ const PreviousOrders: React.FC = () => {
       const q = query(
         ordersRef,
         where('customerId', '==', currentUser.uid),
-        where('status', '==', 'completed'),
+        where('status', '==', 'picked_up'),
         orderBy('createdAt', 'desc')
       );
 
@@ -178,7 +178,7 @@ const PreviousOrders: React.FC = () => {
           if (!uniqueItems.has(item.id)) {
             uniqueItems.set(item.id, {
               ...item,
-              rating: Math.random() * 2 + 3.5, // Simulated rating between 3.5 and 5.5
+              
             });
           }
         });
@@ -282,7 +282,12 @@ const PreviousOrders: React.FC = () => {
       <ThemedText type="subtitle" style={styles.title}>Previous Orders</ThemedText>
       <ThemedText style={styles.subtitle}>Quick reorder from your order history</ThemedText>
       
-      <View style={styles.gridContainer}>
+      
+      <ScrollView 
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalScrollContainer}
+      >
         {previousOrders.map((item, index) => (
           <ItemCard
             key={item.id}
@@ -292,7 +297,7 @@ const PreviousOrders: React.FC = () => {
             index={index}
           />
         ))}
-      </View>
+      </ScrollView>
     </ScrollView>
   );
 };
@@ -321,9 +326,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
+  horizontalScrollContainer: {
+    paddingHorizontal: 8,
+    paddingBottom: 16,
+  },
   itemCard: {
-    width: (Dimensions.get('window').width - 36) / 2,
-    margin: 8,
+    width: Dimensions.get('window').width * 0.75, // Cards take 75% of screen width
+    marginHorizontal: 8,
     backgroundColor: '#fff',
     borderRadius: 20,
     overflow: 'hidden',

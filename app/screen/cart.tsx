@@ -11,6 +11,7 @@ import { WebView } from 'react-native-webview';
 import { generateHash } from '../Utils/payuHash'; // You'll need to create this utility
 // import Config from 'react-native-config'; // For environment variables
 import * as Linking from "expo-linking"
+import CouponComponent from '../../components/CouponComponent';
 interface PayUConfig {
     merchantKey: string;
     merchantSalt: string;
@@ -48,6 +49,7 @@ const CartScreen: React.FC = () => {
     const [showPaymentGateway, setShowPaymentGateway] = useState(false);
     const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
     const [checkoutLoading, setCheckoutLoading] = useState(false);
+    const [discount, setDiscount] = useState(0);
 
     const payuConfig: PayUConfig = {
         merchantKey: 'gSR07M',
@@ -483,6 +485,11 @@ allowingReadAccessToURL={true}
                   </TouchableOpacity>
                 </View>
               </View>
+              <CouponComponent
+  totalAmount={getTotalPrice()}
+  onApplyCoupon={(discountAmount) => setDiscount(discountAmount)}
+  onRemoveCoupon={() => setDiscount(0)}
+/>
             </View>
 
             <TouchableOpacity
@@ -494,11 +501,14 @@ allowingReadAccessToURL={true}
           </View>
         ))}
       </ScrollView>
+      
 
       <View style={styles.footer}>
                 <View style={styles.totalContainer}>
                     <ThemedText style={styles.totalText}>Total:</ThemedText>
-                    <ThemedText style={styles.totalAmount}>₹{getTotalPrice().toFixed(2)}</ThemedText>
+                    <ThemedText style={styles.totalAmount}>
+  ₹{(getTotalPrice() - discount).toFixed(2)}
+</ThemedText>
                 </View>
 
                 <View style={styles.actionButtons}>

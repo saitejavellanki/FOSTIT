@@ -21,7 +21,7 @@ interface ShopData {
 
 interface AvailableShopsProps {
     searchQuery: string;
-  }
+}
 
 interface RestaurantCardProps {
   shop: ShopData;
@@ -128,7 +128,7 @@ const AvailableShops: React.FC<AvailableShopsProps> = ({ searchQuery }) => {
         ))}
       </View>
     );
-  };
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -144,6 +144,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
+    color: '#000000', // Added black color
   },
   viewAll: {
     flexDirection: 'row',
@@ -184,6 +185,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     flex: 1,
+    color: '#000000', // Added black color
   },
   cuisineRow: {
     flexDirection: 'row',

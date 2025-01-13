@@ -1,4 +1,3 @@
-// ShopScreen.tsx
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Image, TouchableOpacity, Modal as RNModal } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -13,6 +12,9 @@ import { CartButton } from '../../components/CartButton';
 import { CategorySection } from '../../components/CategorySection';
 import { styles } from './styles';
 import { ShopDetails, MenuItem, CartItem } from './types';
+import Showcart from '@/components/Showcart';
+import ShopHeader from '@/components/ShopHeader';
+import Footer from '@/components/Footer';
 
 const ShopScreen: React.FC = () => {
   const { shopId } = useLocalSearchParams();
@@ -34,7 +36,6 @@ const ShopScreen: React.FC = () => {
 
       try {
         setLoading(true);
-        console.log('Fetching shop data for shopId:', shopId);
         
         // 1. Fetch shop details
         const shopRef = doc(firestore, 'shops', shopId);
@@ -62,18 +63,8 @@ const ShopScreen: React.FC = () => {
         } as MenuItem));
 
         setItems(itemsList);
-
-        // 3. Categorize items
-        const categorized = itemsList.reduce((acc, item) => {
-          const category = item.category || 'Uncategorized';
-          if (!acc[category]) {
-            acc[category] = [];
-          }
-          acc[category].push(item);
-          return acc;
-        }, {} as Record<string, MenuItem[]>);
-
-        setCategorizedItems(categorized);
+        categorizeItems(itemsList);
+        
         setLoading(false);
       } catch (error) {
         console.error('Error fetching shop data:', error);
@@ -84,6 +75,23 @@ const ShopScreen: React.FC = () => {
 
     fetchShopData();
   }, [shopId]);
+
+  const handleSearchResults = (filteredItems: MenuItem[]) => {
+    categorizeItems(filteredItems);
+  };
+
+  const categorizeItems = (itemsList: MenuItem[]) => {
+    const categorized = itemsList.reduce((acc, item) => {
+      const category = item.category || 'Uncategorized';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(item);
+      return acc;
+    }, {} as Record<string, MenuItem[]>);
+
+    setCategorizedItems(categorized);
+  };
 
   const addToCart = async (item: MenuItem) => {
     if (!item.isActive) return;
@@ -127,6 +135,10 @@ const ShopScreen: React.FC = () => {
 
   return (
     <ThemedView style={styles.container}>
+      <ShopHeader 
+        items={items}
+        onSearchResults={handleSearchResults}
+      />
       <ScrollView>
         {shopDetails && (
           <View style={styles.shopHeader}>
@@ -134,7 +146,6 @@ const ShopScreen: React.FC = () => {
               source={{ uri: shopDetails.imageUrl }}
               style={styles.shopImage}
             />
-            <CartButton />
             <View style={styles.shopInfo}>
               <ThemedText>{shopDetails.name}</ThemedText>
               {shopDetails.description && (
@@ -161,7 +172,10 @@ const ShopScreen: React.FC = () => {
             />
           ))}
       </ScrollView>
-
+      
+      <Footer shopName={shopDetails?.name ?? ''} />
+      <Showcart />
+      
       <RNModal
         visible={modalVisible}
         animationType="slide"

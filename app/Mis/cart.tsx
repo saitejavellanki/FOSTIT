@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, View, StyleSheet, TouchableOpacity, Alert, ActivityIndicator,SafeAreaView  } from 'react-native';
+import { ScrollView, View, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -8,10 +8,12 @@ import { router } from 'expo-router';
 import { firestore, getCurrentUser } from '../../components/firebase/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { WebView } from 'react-native-webview';
-import { generateHash } from '../Utils/payuHash'; // You'll need to create this utility
-// import Config from 'react-native-config'; // For environment variables
+import { generateHash } from '../Utils/payuHash';
 import * as Linking from "expo-linking"
 import Ads from '@/components/Ads';
+import OrderSuccessScreen from '../screen/OrderSuccessScreen';
+import CouponComponent from '@/components/CouponComponent';
+import PreviousOrders from './PreviousOrders';
 interface PayUConfig {
     merchantKey: string;
     merchantSalt: string;
@@ -49,7 +51,9 @@ const CartScreen: React.FC = () => {
     const [showPaymentGateway, setShowPaymentGateway] = useState(false);
     const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
     const [checkoutLoading, setCheckoutLoading] = useState(false);
-
+    const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+    const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
+    const [discount, setDiscount] = useState(0);
     const payuConfig: PayUConfig = {
         merchantKey: 'gSR07M',
         merchantSalt: 'RZdd32itbMYSKM7Kwo4teRkhUKCsWbnj',
@@ -81,7 +85,7 @@ const userDetails = async()=>{
 
   const generatePaymentData = async (currentUser: any) => {
     const txnid = `TXN_${Date.now()}`;
-    const amount = getTotalPrice().toString();
+    const amount = (getTotalPrice() - discount).toString();
     const productinfo = 'Food Order';
     
     const paymentData: PaymentData = {
@@ -111,20 +115,28 @@ const userDetails = async()=>{
   };
 
   const handlePaymentResponse = (response: any) => {
-    // Parse the response URL
     const urlParams = new URLSearchParams(response.url);
     
     if (response.url.includes(payuConfig.surl)) {
-      // Payment Success
-      createFirebaseOrder();
-      setShowPaymentGateway(false);
-      Alert.alert('Success', 'Payment completed successfully!');
+        // Payment Success
+        createFirebaseOrder().then(() => {
+            setShowPaymentGateway(false);
+            setShowSuccessAnimation(true);
+            // After 2 seconds, redirect to order waiting page
+            setTimeout(() => {
+                if (successOrderId) {
+                    router.push({
+                        pathname: '/Mis/orderwaiting',
+                        params: { orderId: successOrderId }
+                    });
+                }
+            }, 2000);
+        });
     } else if (response.url.includes(payuConfig.furl)) {
-      // Payment Failure
-      setShowPaymentGateway(false);
-      Alert.alert('Failed', 'Payment failed. Please try again.');
+        setShowPaymentGateway(false);
+        Alert.alert('Failed', 'Payment failed. Please try again.');
     }
-  };
+};
 
   const createFirebaseOrder = async () => {
     try {
@@ -150,7 +162,7 @@ const userDetails = async()=>{
         vendorId: item.vendorId || ''
       }));
   
-      const totalAmount = getTotalPrice();
+      const totalAmount = getTotalPrice() - discount;
       const uniqueShopIds = [...new Set(orderItems.map(item => item.shopId))];
       
       if (uniqueShopIds.length > 1) {
@@ -176,10 +188,13 @@ const userDetails = async()=>{
       await AsyncStorage.removeItem('cart');
       setCartItems([]);
       
-      router.push({
-        pathname: '/Mis/orderwaiting',
-        params: { orderId: orderDoc.id }
-      });
+      setSuccessOrderId(orderDoc.id);
+      
+
+      // router.push({
+      //   pathname: '/Mis/orderwaiting',
+      //   params: { orderId: orderDoc.id }
+      // });
   
     } catch (error) {
       console.error('Order creation error:', error);
@@ -189,6 +204,30 @@ const userDetails = async()=>{
       setLoading(false);
     }
   };
+
+  const handleAnimationComplete = () => {
+    if (successOrderId) {
+      router.push({
+        pathname: '/Mis/orderwaiting',
+        params: { orderId: successOrderId }
+      });
+    }
+  };
+
+  if (showSuccessAnimation) {
+    return (
+        <OrderSuccessScreen 
+            onAnimationComplete={() => {
+                if (successOrderId) {
+                    router.push({
+                        pathname: '/Mis/orderwaiting',
+                        params: { orderId: successOrderId }
+                    });
+                }
+            }}
+        />
+    );
+}
 
   const updateCart = async (updatedItems: CartItem[]) => {
     try {
@@ -303,33 +342,37 @@ const handleBack = () => {
 
 if (loading) {
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ThemedView style={styles.loadingContainer}>
-        <ThemedText>Loading cart...</ThemedText>
-      </ThemedView>
-    </SafeAreaView>
+      <SafeAreaView style={styles.safeArea}>
+          <View style={styles.safeContent}>
+              <ThemedView style={styles.loadingContainer}>
+                  <ThemedText>Loading cart...</ThemedText>
+              </ThemedView>
+          </View>
+      </SafeAreaView>
   );
 }
 
 if (cartItems.length === 0) {
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-      <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#2b3240" />
-          </TouchableOpacity>
-      </View>
-      <ThemedView style={styles.emptyContainer}>
-        <MaterialIcons name="shopping-cart" size={64} color="#ccc" />
-        <ThemedText style={styles.emptyText}>Your cart is empty</ThemedText>
-        <TouchableOpacity
-          style={styles.continueShopping}
-          onPress={() => router.back()}
-        >
-          <ThemedText style={styles.continueShoppingText}>Continue Shopping</ThemedText>
-        </TouchableOpacity>
-      </ThemedView>
-    </SafeAreaView>
+      <SafeAreaView style={styles.safeArea}>
+          <View style={styles.safeContent}>
+              <View style={styles.header}>
+                  <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                      <MaterialIcons name="arrow-back" size={24} color="#2b3240" />
+                  </TouchableOpacity>
+              </View>
+              <ThemedView style={styles.emptyContainer}>
+                  <MaterialIcons name="shopping-cart" size={64} color="#ccc" />
+                  <ThemedText style={styles.emptyText}>Your cart is empty</ThemedText>
+                  <TouchableOpacity
+                      style={styles.continueShopping}
+                      onPress={() => router.back()}
+                  >
+                      <ThemedText style={styles.continueShoppingText}>Continue Shopping</ThemedText>
+                  </TouchableOpacity>
+              </ThemedView>
+          </View>
+      </SafeAreaView>
   );
 }
 
@@ -375,7 +418,7 @@ if (cartItems.length === 0) {
         onError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.warn('WebView error: ', nativeEvent);
-          Alert.alert('Error', 'Failed to load payment gateway');
+          // Alert.alert('Error', 'Failed to load payment gateway');
         }}
       
         
@@ -466,7 +509,7 @@ allowsBackForwardNavigationGestures={true}
                 </View>
               </View>
             </View>
-
+            
             <TouchableOpacity
               style={styles.removeButton}
               onPress={() => removeItem(item.id)}
@@ -478,10 +521,18 @@ allowsBackForwardNavigationGestures={true}
         
       </ScrollView>
       
+      <CouponComponent
+  totalAmount={getTotalPrice()}
+  onApplyCoupon={(discountAmount) => setDiscount(discountAmount)}
+  onRemoveCoupon={() => setDiscount(0)}
+/>
+      
       <View style={styles.footer}>
         <View style={styles.totalContainer}>
           <ThemedText style={styles.totalText}>Total Amount</ThemedText>
-          <ThemedText style={styles.totalAmount}>₹{getTotalPrice().toFixed(2)}</ThemedText>
+          <ThemedText style={styles.totalAmount}>
+  ₹{(getTotalPrice() - discount).toFixed(2)}
+</ThemedText>
         </View>
 
         <View style={styles.actionButtons}>
@@ -515,18 +566,22 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    height: 56,
-  },
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+},
+safeContent: {
+    flex: 1,
+},
+header: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  backgroundColor: '#fff',
+  borderBottomWidth: 1,
+  borderBottomColor: '#eee',
+  height: 56,
+},
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',

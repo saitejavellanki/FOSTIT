@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import PreviousOrders from './PreviousOrders';
 import Ads from '@/components/Ads';
+import OrderFeedback from '@/components/OrderFeedbackComponent';
 
 const { width } = Dimensions.get('window');
 
@@ -50,12 +51,13 @@ const OrderWaitingScreen: React.FC = () => {
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPickedUp, setIsPickedUp] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const { orderId } = useLocalSearchParams();
 
   const handleBackPress = () => {
-    router.back();
-  };
+    router.push('/(tabs)'); // If your home screen is within a tab navigator
+};
 
   useEffect(() => {
     const backAction = () => {
@@ -75,7 +77,7 @@ const OrderWaitingScreen: React.FC = () => {
       router.replace('/');
       return;
     }
-
+  
     const orderRef = doc(firestore, 'orders', orderId as string);
     const unsubscribe = onSnapshot(
       orderRef,
@@ -85,6 +87,11 @@ const OrderWaitingScreen: React.FC = () => {
           setOrderStatus(data.status);
           setIsReadyForPickup(data.status === 'completed');
           setIsCancelled(data.status === 'cancelled');
+          
+          // Show feedback when order status becomes processing and feedback hasn't been submitted yet
+          if (data.status === 'pending' && !data.feedbackSubmitted) {
+            setShowFeedback(true);
+          }
           
           if (data.pickedUp || data.status === 'picked_up') {
             setIsQRModalVisible(false);
@@ -105,7 +112,7 @@ const OrderWaitingScreen: React.FC = () => {
         setLoading(false);
       }
     );
-
+  
     return () => unsubscribe();
   }, [orderId]);
 
@@ -325,6 +332,15 @@ const OrderWaitingScreen: React.FC = () => {
           </View>
         </BlurView>
       </Modal>
+      <OrderFeedback
+  items={orderDetails?.items.map(item => ({
+    name: item.name,
+    id: item.id // Make sure your order items include the item ID
+  })) || []}
+  isVisible={showFeedback}
+  onClose={() => setShowFeedback(false)}
+  orderId={orderId as string}
+/>
     </ThemedView>
   );
 };

@@ -9,7 +9,8 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   ScrollView,
-  Text
+  Text,
+  Image
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/ThemedText';
@@ -31,6 +32,54 @@ const WelcomeScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+
+  const validateGoogleEmail = (email: string): boolean => {
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailError('Please enter a valid email address');
+      return false;
+    }
+
+    // Check if it's a Gmail address
+    if (!email.toLowerCase().endsWith('@gmail.com')) {
+      setEmailError('Please use a valid Gmail address');
+      return false;
+    }
+
+    // Additional Gmail-specific validation
+    const localPart = email.split('@')[0].toLowerCase();
+    
+    // Gmail username rules:
+    // - Must be between 6-30 characters
+    // - Can contain letters, numbers, dots
+    // - Cannot start or end with a dot
+    // - Cannot have consecutive dots
+    // if (
+    //   localPart.length < 6 ||
+    //   localPart.length > 30 ||
+    //   localPart.startsWith('.') ||
+    //   localPart.endsWith('.') ||
+    //   localPart.includes('..') ||
+   
+    // ) {
+    //   setEmailError('Invalid Gmail username format');
+    //   return false;
+    // }
+
+    setEmailError('');
+    return true;
+  };
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    if (text) {
+      validateGoogleEmail(text);
+    } else {
+      setEmailError('');
+    }
+  };
 
   const handleEmailSignIn = async () => {
     try {
@@ -39,11 +88,18 @@ const WelcomeScreen: React.FC = () => {
         Alert.alert('Error', 'Please enter both email and password');
         return;
       }
+
+      // Validate email before proceeding
+      if (!validateGoogleEmail(email)) {
+        setLoading(false);
+        return;
+      }
+
       await AsyncStorage.setItem('user', JSON.stringify({email, password}));
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
       if (userCredential.user) {
-        router.replace('/(tabs)/');
+        router.replace('/(tabs)/profile');
       }
     } catch (error) {
       console.error('Email sign in error:', error);
@@ -92,15 +148,10 @@ const WelcomeScreen: React.FC = () => {
         />
         
         <View style={styles.logoContainer}>
-          <View style={styles.logoWrapper}>
-            <MaterialIcons name="restaurant-menu" size={60} color="#FF5A1F" />
-          </View>
-          <ThemedText type="title" style={styles.title}>
-            FOODIE
-          </ThemedText>
-          <ThemedText type="subtitle" style={styles.tagline}>
-            Welcome back, foodie!
-          </ThemedText>
+          <Image 
+            source={require('../../assets/images/Fos_t-removebg-preview.png')} 
+            style={styles.logoImage}
+          />
         </View>
 
         <View style={styles.formContainer}>
@@ -116,12 +167,17 @@ const WelcomeScreen: React.FC = () => {
                 placeholder="Email"
                 placeholderTextColor="#666"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={handleEmailChange}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 editable={!loading}
               />
             </View>
+            {emailError ? (
+              <ThemedText style={styles.errorText}>
+                {emailError}
+              </ThemedText>
+            ) : null}
 
             <View style={styles.inputWrapper}>
               <MaterialIcons name="lock" size={20} color="#FF5A1F" style={styles.inputIcon} />
@@ -135,19 +191,26 @@ const WelcomeScreen: React.FC = () => {
                 editable={!loading}
               />
             </View>
+            <View style={styles.forgotPasswordContainer}>
+  <Link href="/(auth)/ForgotPasswordScreen">
+    <ThemedText style={styles.forgotPasswordText}>
+      Forgot password?
+    </ThemedText>
+  </Link>
+</View>
           </View>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.disabledButton]}
             onPress={handleEmailSignIn}
-            disabled={loading}
+            disabled={loading || !!emailError}
           >
             <ThemedText style={styles.buttonText}>
               {loading ? 'Signing in...' : 'Sign In'}
             </ThemedText>
           </TouchableOpacity>
 
-          {Platform.OS === 'web' && (
+          {/* {Platform.OS === 'web' && (
             <TouchableOpacity
               style={[styles.googleButton, loading && styles.disabledButton]}
               onPress={handleGoogleSignIn}
@@ -158,11 +221,11 @@ const WelcomeScreen: React.FC = () => {
                 Continue with Google
               </ThemedText>
             </TouchableOpacity>
-          )}
+          )} */}
 
           <View style={styles.footer}>
             <ThemedText style={styles.footerText}>
-              New to Foodie?{' '}
+              New to Fost?{' '}
             </ThemedText>
             <Link href="/(auth)/signup">
               <ThemedText style={styles.linkText}>
@@ -170,6 +233,8 @@ const WelcomeScreen: React.FC = () => {
               </ThemedText>
             </Link>
           </View>
+
+          
 
           <ThemedText style={styles.terms}>
             By continuing, you agree to our Terms of Service and Privacy Policy
@@ -201,6 +266,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 60,
     paddingBottom: 30,
+  },
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 16,
+  },
+  forgotPasswordText: {
+    color: '#FF5A1F',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  logoImage: {
+    width: 300,
+    height: 200,
+    resizeMode: 'contain',
   },
   logoWrapper: {
     width: 100,
@@ -276,6 +355,12 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: '#333',
+  },
+  errorText: {
+    color: '#FF0000',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
   button: {
     backgroundColor: '#FF5A1F',

@@ -1,74 +1,105 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Dimensions, TouchableOpacity, Alert, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Alert, Platform, Animated, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const width = Dimensions.get('screen').width;
-
-interface MenuItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  imageUrl: string;
-  category: string;
-  isActive: boolean;
-  dietType: 'veg' | 'non-veg';
-  shopId: string;
-  vendorId: string;
+interface ShowcartProps {
+  triggerAnimation?: boolean;
 }
 
-interface CartItem extends MenuItem {
-  quantity: number;
-  shopName?: string;
-}
-
-const Showcart = () => {
+const Showcart: React.FC<ShowcartProps> = ({ triggerAnimation }) => {
   const [isCart, setIsCart] = useState(false);
   const [length, setLength] = useState(0);
   const insets = useSafeAreaInsets();
-
-  // Calculate tab bar height
+  const popupAnimation = useRef(new Animated.Value(1)).current;
+  const scaleAnimation = useRef(new Animated.Value(1)).current;
+  const previousLength = useRef(length);
+  
   const TAB_BAR_HEIGHT = 60;
-  const bottomOffset = Platform.OS === 'ios' ? 
-    TAB_BAR_HEIGHT + insets.bottom : 
-    TAB_BAR_HEIGHT;
+  const BOTTOM_SPACING = 16;
+  
+  // Calculate bottom offset based on device and safe area
+  const bottomOffset = Platform.OS === 'ios' 
+    ? TAB_BAR_HEIGHT + insets.bottom + BOTTOM_SPACING
+    : TAB_BAR_HEIGHT + BOTTOM_SPACING;
 
   useEffect(() => {
     loadCartItems();
   }, []);
 
   useEffect(() => {
-    const getCartCount = async () => {
+    const checkCartChanges = async () => {
       try {
         const cartString = await AsyncStorage.getItem('cart');
         if (cartString) {
           const cart = JSON.parse(cartString);
-          const count = cart.reduce((total: number, item: CartItem) => total + item.quantity, 0);
+          const count = cart.reduce((total: number, item: any) => total + item.quantity, 0);
           setLength(count);
+          setIsCart(count > 0);
+        } else {
+          setLength(0);
+          setIsCart(false);
         }
       } catch (error) {
-        console.error('Error getting cart count:', error);
+        console.error('Error checking cart:', error);
+        setLength(0);
+        setIsCart(false);
       }
     };
 
-    const interval = setInterval(getCartCount, 1000);
+    const interval = setInterval(checkCartChanges, 500);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (length > previousLength.current) {
+      animateCart();
+    }
+    previousLength.current = length;
+  }, [length]);
+
+  useEffect(() => {
+    if (triggerAnimation) {
+      animateCart();
+    }
+  }, [triggerAnimation]);
+
+  const animateCart = () => {
+    scaleAnimation.setValue(1);
+    Animated.sequence([
+      Animated.spring(scaleAnimation, {
+        toValue: 1.1,
+        useNativeDriver: true,
+        friction: 5,
+        tension: 200
+      }),
+      Animated.spring(scaleAnimation, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 5,
+        tension: 200
+      })
+    ]).start();
+  };
 
   const loadCartItems = async () => {
     try {
       const cartString = await AsyncStorage.getItem('cart');
       if (cartString) {
         const cart = JSON.parse(cartString);
-        const count = cart.reduce((total: number, item: CartItem) => total + item.quantity, 0);
+        const count = cart.reduce((total: number, item: any) => total + item.quantity, 0);
         setLength(count);
-        setIsCart(true);
+        setIsCart(count > 0);
+      } else {
+        setLength(0);
+        setIsCart(false);
       }
     } catch (error) {
       console.error('Error loading cart:', error);
+      setLength(0);
+      setIsCart(false);
     }
   };
 
@@ -102,12 +133,15 @@ const Showcart = () => {
     router.push('/Mis/cart');
   };
 
-  if (length === 0) return null;
+  if (!isCart || length === 0) return null;
 
   return (
-    <View style={[
+    <Animated.View style={[
       styles.container, 
-      { bottom: bottomOffset + 16 } // Position above tab bar with padding
+      { 
+        bottom: bottomOffset,
+        transform: [{ scale: scaleAnimation }]
+      }
     ]}>
       <TouchableOpacity
         style={styles.cartButton}
@@ -119,12 +153,14 @@ const Showcart = () => {
           onPress={clearCart}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="close-circle" size={28} color="#fff" />
+          <Ionicons name="close-circle" size={24} color="#FF5733" />
         </TouchableOpacity>
 
         <View style={styles.cartContent}>
           <View style={styles.leftContent}>
-            <Ionicons name="cart" size={24} color="#fff" />
+            <View style={styles.iconContainer}>
+              <Ionicons name="cart" size={20} color="#FF5733" />
+            </View>
             <Text style={styles.viewCartText}>View Cart</Text>
           </View>
           
@@ -132,12 +168,12 @@ const Showcart = () => {
             <Text style={styles.itemCount}>{length} {length === 1 ? 'item' : 'items'}</Text>
             <View style={styles.proceedContainer}>
               <Text style={styles.proceedText}>Proceed</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
+              <Ionicons name="arrow-forward" size={18} color="#FF5733" />
             </View>
           </View>
         </View>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -146,54 +182,69 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    zIndex: 999,
+    zIndex: 99999,
+    elevation: 99999,
     paddingHorizontal: 16,
     backgroundColor: 'transparent',
-    marginBottom:-36,
   },
   cartButton: {
-    backgroundColor: '#fc8019',
+    backgroundColor: '#FFFFFF',
     width: '100%',
-    borderRadius: 16,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 87, 51, 0.1)',
   },
   clearButton: {
     position: 'absolute',
-    left: -12,
-    top: -12,
-    zIndex: 1,
-    backgroundColor: '#fc8019',
-    borderRadius: 14,
+    left: -8,
+    top: -8,
+    zIndex: 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
   },
   cartContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 14,
   },
   leftContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
+  iconContainer: {
+    backgroundColor: 'rgba(255, 87, 51, 0.1)',
+    padding: 8,
+    borderRadius: 8,
+  },
   rightContent: {
     alignItems: 'flex-end',
   },
   viewCartText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#2D3436',
+    fontSize: 15,
     fontWeight: '600',
   },
   itemCount: {
-    color: '#fff',
-    fontSize: 14,
+    color: '#636E72',
+    fontSize: 13,
     marginBottom: 4,
   },
   proceedContainer: {
@@ -202,9 +253,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   proceedText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
+    color: '#FF5733',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
 

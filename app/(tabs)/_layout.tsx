@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { useColorScheme, Image, Platform } from 'react-native';
+import { useColorScheme, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { auth } from '../../components/firebase/firebase';
@@ -16,7 +16,6 @@ export default function TabsLayout() {
     if (currentUser?.photoURL) {
       setUserPhotoURL(currentUser.photoURL);
     }
-
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user?.photoURL) {
         setUserPhotoURL(user.photoURL);
@@ -24,7 +23,6 @@ export default function TabsLayout() {
         setUserPhotoURL(null);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -50,6 +48,7 @@ export default function TabsLayout() {
             width: 0,
             height: -2,
           },
+          zIndex: 1, // Added lower zIndex
         },
         tabBarItemStyle: {
           paddingBottom: Platform.OS === 'ios' ? (insets.bottom > 0 ? 0 : 8) : 8,

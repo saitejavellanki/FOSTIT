@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PreviousOrders from '../Mis/PreviousOrders';
 import { PullToRefreshScrollView } from '@/components/PullToRefreshScrollView';
 import Ads from '@/components/Ads';
+import OffersSection from '@/components/Offers';
 
 
 interface LocationState {
@@ -104,7 +105,9 @@ const HomeScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: '#FC8019' }]}>
       <ThemedView style={styles.container}>
-        <Showcart />
+      <View style={styles.cartWrapper}>
+    <Showcart />
+  </View>
         <PullToRefreshScrollView
         refreshing={refreshing}
         onRefresh={onRefresh}
@@ -162,36 +165,13 @@ const HomeScreen: React.FC = () => {
             
 
           <AvailableShops searchQuery={searchQuery} />
-            <View style={styles.offersContainer}>
-              <View style={styles.sectionHeaderContainer}>
-                <ThemedText type="subtitle" style={styles.sectionTitle}>
-                  Best Offers
-                </ThemedText>
-                
-              </View>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                decelerationRate="fast"
-                contentContainerStyle={styles.offersScrollContent}
-              >
-                {[1, 2, 3].map((item) => (
-                  <TouchableOpacity 
-                    key={item} 
-                    style={styles.offerCard}
-                    activeOpacity={0.8}
-                  >
-                    <MaterialIcons name="local-offer" size={20} color="#FC8019" />
-                    <ThemedText style={styles.offerText}>50% OFF up to ₹100</ThemedText>
-                    <ThemedText style={styles.offerSubtext}>Valid on all orders</ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+            
             <View style={styles.previousOrdersContainer}>
               <PreviousOrders />
             </View>
-            
+            <View style={styles.offersWrapper}>
+    <OffersSection/>
+  </View>
           </View>
           
           </PullToRefreshScrollView>
@@ -201,13 +181,24 @@ const HomeScreen: React.FC = () => {
   );
 };
 
+const TAB_BAR_HEIGHT = 5;
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  cartWrapper: {
+    position: 'absolute',
+    bottom: TAB_BAR_HEIGHT + 16, // Adjust based on your nav bar height
+    left: 0,
+    right: 0,
+    zIndex: 9999,
+    elevation: 9999,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8f8f8',
+    marginBottom: -20,
   },
   mainScroll: {
     flex: 1,
@@ -215,6 +206,10 @@ const styles = StyleSheet.create({
   scrollContentContainer: {
     flexGrow: 1,
   },
+  offersWrapper: {
+  flex: 1,
+  marginBottom: -20,
+},
   header: {
     backgroundColor: '#FC8019',
     borderBottomLeftRadius: 30,

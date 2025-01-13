@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,35 +9,137 @@ import {
   Alert,
   Dimensions,
   KeyboardAvoidingView,
-  Image
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
-import { createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { 
+  createUserWithEmailAndPassword, 
+  getAuth,
+  AuthError,
+  UserCredential 
+} from 'firebase/auth';
 
+// Type definitions
 interface SignupProps {}
 
+interface FormState {
+  email: string;
+  password: string;
+}
+
+interface FormErrors {
+  email?: string;
+  password?: string;
+}
+
 const Signup: React.FC<SignupProps> = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  // State management
+  const [formData, setFormData] = useState<FormState>({
+    email: '',
+    password: ''
+  });
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [loading, setLoading] = useState<boolean>(false);
   const auth = getAuth();
 
-  const handleEmailSignIn = async () => {
+  // Validation functions
+  const validateEmail = (email: string): string | undefined => {
+    if (!email) {
+      return 'Email is required';
+    }
+    if (!email.includes('@')) {
+      return 'Please enter a valid email address';
+    }
+    return undefined;
+  };
+
+  const validatePassword = (password: string): string | undefined => {
+    if (!password) {
+      return 'Password is required';
+    }
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters long';
+    }
+    if (!/[A-Z]/.test(password)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!/[a-z]/.test(password)) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (!/[0-9]/.test(password)) {
+      return 'Password must contain at least one number';
+    }
+    return undefined;
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+    
+    const emailError = validateEmail(formData.email);
+    if (emailError) newErrors.email = emailError;
+    
+    const passwordError = validatePassword(formData.password);
+    if (passwordError) newErrors.password = passwordError;
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Input handlers
+  const handleInputChange = useCallback((name: keyof FormState, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear error when user starts typing
+    setErrors(prev => ({ ...prev, [name]: undefined }));
+  }, []);
+
+  // Sign up handler
+  const handleEmailSignIn = async (): Promise<void> => {
     try {
-      setLoading(true);
-      if (!email || !password) {
-        Alert.alert('Error', 'Please enter both email and password');
+      if (!validateForm()) {
         return;
       }
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+      setLoading(true);
+
+      const userCredential: UserCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+
       if (userCredential.user) {
-        console.log(userCredential.user);
+        Alert.alert('Success', 'Account created successfully!');
+        // Additional success handling (e.g., navigation) can be added here
       }
     } catch (error) {
-      Alert.alert('Error', error.message);
+      const authError = error as AuthError;
+      let errorMessage = 'An error occurred during sign up';
+      
+      switch (authError.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'This email is already registered';
+          setErrors(prev => ({ ...prev, email: errorMessage }));
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email format';
+          setErrors(prev => ({ ...prev, email: errorMessage }));
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Email/password accounts are not enabled';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Password is too weak';
+          setErrors(prev => ({ ...prev, password: errorMessage }));
+          break;
+        default:
+          console.error('Sign up error:', authError);
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -60,15 +162,10 @@ const Signup: React.FC<SignupProps> = () => {
         />
         
         <View style={styles.logoContainer}>
-          <View style={styles.logoWrapper}>
-            <MaterialIcons name="restaurant-menu" size={60} color="#FF5A1F" />
-          </View>
-          <ThemedText type="title" style={styles.title}>
-            FOODIE
-          </ThemedText>
-          <ThemedText type="subtitle" style={styles.tagline}>
-            Delicious food at your doorstep
-          </ThemedText>
+          <Image 
+            source={require('../../assets/images/Fos_t-removebg-preview.png')} 
+            style={styles.logoImage}
+          />
         </View>
 
         <View style={styles.formContainer}>
@@ -76,33 +173,43 @@ const Signup: React.FC<SignupProps> = () => {
             Create your account
           </ThemedText>
 
+          <ThemedText style={styles.gmailNote}>
+            🌟 Use your existing Gmail account to unlock premium features and enhance your experience!
+          </ThemedText>
+
           <View style={styles.inputContainer}>
             <View style={styles.inputWrapper}>
               <MaterialIcons name="email" size={20} color="#FF5A1F" style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
-                placeholder="Email"
+                style={[styles.input, errors.email && styles.inputError]}
+                placeholder="Email address"
                 placeholderTextColor="#666"
-                value={email}
-                onChangeText={setEmail}
+                value={formData.email}
+                onChangeText={(value) => handleInputChange('email', value)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 editable={!loading}
               />
             </View>
+            {errors.email && (
+              <ThemedText style={styles.errorText}>{errors.email}</ThemedText>
+            )}
 
             <View style={styles.inputWrapper}>
               <MaterialIcons name="lock" size={20} color="#FF5A1F" style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, errors.password && styles.inputError]}
                 placeholder="Password"
                 placeholderTextColor="#666"
-                value={password}
-                onChangeText={setPassword}
+                value={formData.password}
+                onChangeText={(value) => handleInputChange('password', value)}
                 secureTextEntry
                 editable={!loading}
               />
             </View>
+            {errors.password && (
+              <ThemedText style={styles.errorText}>{errors.password}</ThemedText>
+            )}
           </View>
 
           <TouchableOpacity
@@ -110,22 +217,11 @@ const Signup: React.FC<SignupProps> = () => {
             onPress={handleEmailSignIn}
             disabled={loading}
           >
-            <ThemedText style={styles.buttonText}>
-              {loading ? 'Creating Account...' : 'Sign Up Now'}
-            </ThemedText>
-          </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <ThemedText style={styles.dividerText}>or</ThemedText>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity style={styles.socialButton}>
-            <MaterialIcons name="email" size={24} color="#FF5A1F" />
-            <ThemedText style={styles.socialButtonText}>
-              Continue with Google
-            </ThemedText>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <ThemedText style={styles.buttonText}>Sign Up Now</ThemedText>
+            )}
           </TouchableOpacity>
 
           <View style={styles.footer}>
@@ -133,9 +229,7 @@ const Signup: React.FC<SignupProps> = () => {
               Already have an account?{' '}
             </ThemedText>
             <Link href="/(auth)/welcome">
-              <ThemedText style={styles.linkText}>
-                Sign In
-              </ThemedText>
+              <ThemedText style={styles.linkText}>Sign In</ThemedText>
             </Link>
           </View>
 
@@ -165,10 +259,34 @@ const styles = StyleSheet.create({
     height: Dimensions.get('window').height * 0.4,
     opacity: 0.9,
   },
+  gmailNote: {
+    backgroundColor: '#FFF3E0',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+    color: '#FF5A1F',
+    textAlign: 'center',
+    fontSize: 14,
+    overflow: 'hidden',
+  },
+  inputError: {
+    borderColor: '#FF0000',
+  },
+  errorText: {
+    color: '#FF0000',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
   logoContainer: {
     alignItems: 'center',
     paddingTop: 60,
     paddingBottom: 30,
+  },
+  logoImage: {
+    width: 300,
+    height: 200,
+    resizeMode: 'contain',
   },
   logoWrapper: {
     width: 100,
@@ -266,36 +384,6 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.7,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#eee',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#666',
-  },
-  socialButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#eee',
-    gap: 12,
-  },
-  socialButtonText: {
-    color: '#333',
-    fontSize: 16,
-    fontWeight: '500',
   },
   footer: {
     flexDirection: 'row',
