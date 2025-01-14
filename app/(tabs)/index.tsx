@@ -24,6 +24,7 @@ import PreviousOrders from '../Mis/PreviousOrders';
 import { PullToRefreshScrollView } from '@/components/PullToRefreshScrollView';
 import Ads from '@/components/Ads';
 import OffersSection from '@/components/Offers';
+import HowItWorksBanner from '@/components/HowItWorksBanner';
 
 
 interface LocationState {
@@ -160,6 +161,7 @@ const HomeScreen: React.FC = () => {
 
             <ActiveOrdersSection />
           </View>
+          <HowItWorksBanner onPress={() => router.push('/Mis/HowitWorks')} />
           <Ads/>
           <View style={[styles.content, { paddingBottom: bottomPadding }]}>
             
