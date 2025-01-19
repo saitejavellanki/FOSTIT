@@ -10,7 +10,8 @@ import {
   BackHandler,
   Platform,
   Dimensions,
-  Image
+  Image,
+  Vibration
 } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -42,9 +43,14 @@ interface OrderDetails {
   pickedUp?: boolean;
 }
 
+// Define vibration patterns
+const PROCESSING_PATTERN = [500]; // Single vibration for 500ms
+const COMPLETED_PATTERN = Array(20).fill(500); // 10 seconds of alternating 500ms vibration/pause
+
 const OrderWaitingScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const [orderStatus, setOrderStatus] = useState<string>('pending');
+  const [previousStatus, setPreviousStatus] = useState<string>('pending');
   const [isReadyForPickup, setIsReadyForPickup] = useState(false);
   const [isCancelled, setIsCancelled] = useState(false);
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
@@ -55,9 +61,31 @@ const OrderWaitingScreen: React.FC = () => {
 
   const { orderId } = useLocalSearchParams();
 
+  // Monitor status changes for vibration
+  useEffect(() => {
+    if (previousStatus !== orderStatus) {
+      // Vibrate when status changes from pending to processing
+      if (previousStatus === 'pending' && orderStatus === 'processing') {
+        Vibration.vibrate(PROCESSING_PATTERN);
+      }
+      
+      // Vibrate pattern when status changes from processing to completed
+      if (previousStatus === 'processing' && orderStatus === 'completed') {
+        Vibration.vibrate(COMPLETED_PATTERN);
+      }
+
+      setPreviousStatus(orderStatus);
+    }
+
+    return () => {
+      Vibration.cancel();
+    };
+  }, [orderStatus, previousStatus]);
+
   const handleBackPress = () => {
-    router.push('/(tabs)'); // If your home screen is within a tab navigator
-};
+    Vibration.cancel();
+    router.push('/(tabs)');
+  };
 
   useEffect(() => {
     const backAction = () => {
@@ -88,7 +116,6 @@ const OrderWaitingScreen: React.FC = () => {
           setIsReadyForPickup(data.status === 'completed');
           setIsCancelled(data.status === 'cancelled');
           
-          // Show feedback when order status becomes processing and feedback hasn't been submitted yet
           if (data.status === 'pending' && !data.feedbackSubmitted) {
             setShowFeedback(true);
           }
@@ -96,6 +123,7 @@ const OrderWaitingScreen: React.FC = () => {
           if (data.pickedUp || data.status === 'picked_up') {
             setIsQRModalVisible(false);
             setIsPickedUp(true);
+            Vibration.cancel();
             setTimeout(() => router.replace('/'), 2000);
           }
           
@@ -113,7 +141,10 @@ const OrderWaitingScreen: React.FC = () => {
       }
     );
   
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      Vibration.cancel();
+    };
   }, [orderId]);
 
   const handleQRScanned = async () => {
@@ -222,11 +253,11 @@ const OrderWaitingScreen: React.FC = () => {
         )}
         
         <Image 
-          source={require('../../assets/images/Fos_t-removebg-preview.png')}  // Update this path to match your logo location
+          source={require('../../assets/images/Fos_t-removebg-preview.png')}
           style={[styles.logo, { top: insets.top + 10 }]}
           resizeMode="contain"
         />
-        </View>
+      </View>
       
       <ScrollView 
         showsVerticalScrollIndicator={false} 
@@ -250,7 +281,6 @@ const OrderWaitingScreen: React.FC = () => {
               ]} 
             />
           </View>
-          
         </View>
 
         {orderDetails && (
@@ -279,21 +309,11 @@ const OrderWaitingScreen: React.FC = () => {
                   ₹{((orderDetails.totalAmount) + (orderDetails.tax || 0)).toFixed(2)}
                 </ThemedText>
               </View>
-              
             </View>
-            <View>
-            
           </View>
-          
-          </View>
-          
-          
-          
         )}
         <Ads/>
-        
-            <PreviousOrders/>
-          
+        <PreviousOrders/>
       </ScrollView>
 
       {isReadyForPickup && !isPickedUp && (
@@ -332,15 +352,16 @@ const OrderWaitingScreen: React.FC = () => {
           </View>
         </BlurView>
       </Modal>
+
       <OrderFeedback
-  items={orderDetails?.items.map(item => ({
-    name: item.name,
-    id: item.id // Make sure your order items include the item ID
-  })) || []}
-  isVisible={showFeedback}
-  onClose={() => setShowFeedback(false)}
-  orderId={orderId as string}
-/>
+        items={orderDetails?.items.map(item => ({
+          name: item.name,
+          id: item.id
+        })) || []}
+        isVisible={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        orderId={orderId as string}
+      />
     </ThemedView>
   );
 };

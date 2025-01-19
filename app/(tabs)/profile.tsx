@@ -1,17 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  ScrollView, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  RefreshControl, 
-  Image, 
-  StyleSheet, 
-  Dimensions, 
-  Alert, 
-  Platform, 
-  StatusBar 
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, ScrollView, TouchableOpacity, SafeAreaView, RefreshControl, Image, StyleSheet, Platform, StatusBar, Alert, ImageBackground } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,33 +11,30 @@ import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { useRouter, useFocusEffect } from 'expo-router';
 import PolicySections from '@/components/PolicySection';
 
-type OrderItem = { name: string; quantity: number; price: number; id: string; };
 type Order = {
   id: string;
   status: 'completed' | 'processing' | 'pending' | 'cancelled';
   shopName: string;
-  items: OrderItem[];
+  items: { name: string; quantity: number; price: number; id: string; }[];
   totalAmount: number;
   createdAt: Date;
   customerEmail: string;
 };
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 const LEVELS = {
-  DIAMOND: { threshold: 50, color: '#E23744', icon: 'diamond', label: 'Connoisseur' },
-  PLATINUM: { threshold: 30, color: '#EF4F5F', icon: 'star', label: 'Food Expert' },
-  GOLD: { threshold: 20, color: '#FF7CA3', icon: 'trophy', label: 'Foodie' },
-  SILVER: { threshold: 10, color: '#FF98B3', icon: 'medal', label: 'Regular' },
-  BRONZE: { threshold: 0, color: '#FFB4C5', icon: 'shield', label: 'Explorer' }
-} as const;
+  DIAMOND: { threshold: 50, color: '#FF6B00', icon: 'diamond', label: 'Top Seller' },
+  PLATINUM: { threshold: 30, color: '#FF8500', icon: 'star', label: 'Level 2 Seller' },
+  GOLD: { threshold: 20, color: '#FFA500', icon: 'trophy', label: 'Level 1 Seller' },
+  SILVER: { threshold: 10, color: '#FFB700', icon: 'medal', label: 'New Seller' },
+  BRONZE: { threshold: 0, color: '#FFD000', icon: 'shield', label: 'New Member' }
+};
 
 const STATUS_COLORS = {
-  completed: '#267E3E',
-  processing: '#E23744',
-  pending: '#EF4F5F',
-  cancelled: '#B5B5B5'
-} as const;
+  completed: '#1DBF73',
+  processing: '#FF8500',
+  pending: '#FFA500',
+  cancelled: '#E93F3F'
+};
 
 const ProfileScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
@@ -58,39 +43,13 @@ const ProfileScreen = () => {
   const user = auth.currentUser;
   const router = useRouter();
 
-  const theme = {
-    bg: '#FFFFFF',
-    text: '#1C1C1C',
-    card: '#FFFFFF',
-    border: '#E8E8E8',
-    subtext: '#696969'
-  };
+  useFocusEffect(React.useCallback(() => { fetchOrders(); }, [user]));
 
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchOrders();
-      return () => {
-        // Cleanup if needed
-      };
-    }, [user])
-  );
-
-  const requestPermissions = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'Please grant camera roll permissions to upload profile picture.',
-        [{ text: 'OK' }]
-      );
-      return false;
+  const handleImagePick = async () => {
+    if (!(await ImagePicker.requestMediaLibraryPermissionsAsync()).granted) {
+      Alert.alert('Permission Required', 'Please grant camera roll permissions to upload profile picture.');
+      return;
     }
-    return true;
-  };
-
-  const pickImage = async () => {
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) return;
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -101,63 +60,30 @@ const ProfileScreen = () => {
       });
 
       if (!result.canceled && result.assets[0].uri) {
-        await uploadImage(result.assets[0].uri);
+        setUploading(true);
+        const response = await fetch(result.assets[0].uri);
+        const blob = await response.blob();
+        const storage = getStorage();
+        const storageRef = ref(storage, `profile_pictures/${user?.uid}`);
+        await uploadBytes(storageRef, blob);
+        const downloadURL = await getDownloadURL(storageRef);
+        await updateProfile(user!, { photoURL: downloadURL });
+        await fetchOrders();
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to pick image');
-    }
-  };
-
-  const uploadImage = async (uri: string) => {
-    if (!user) return;
-    setUploading(true);
-
-    try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      
-      const storage = getStorage();
-      const storageRef = ref(storage, `profile_pictures/${user.uid}`);
-      
-      await uploadBytes(storageRef, blob);
-      const downloadURL = await getDownloadURL(storageRef);
-      
-      await updateProfile(user, {
-        photoURL: downloadURL
-      });
-      
-      setRefreshing(true);
-      await fetchOrders();
     } catch (error) {
       Alert.alert('Error', 'Failed to upload image');
     } finally {
       setUploading(false);
-      setRefreshing(false);
     }
-  };
-
-  const getUserLevel = (orderCount: number) => {
-    const levelEntry = Object.entries(LEVELS).find(([_, data]) => orderCount >= data.threshold) || 
-                      Object.entries(LEVELS).slice(-1)[0];
-    return { name: levelEntry[0], ...levelEntry[1] };
   };
 
   const fetchOrders = async () => {
     if (!user?.email) return;
-    
     try {
       const ordersRef = collection(firestore, 'orders');
       const [ongoing, history] = await Promise.all([
-        getDocs(query(ordersRef, 
-          where('customerEmail', '==', user.email),
-          where('status', '!=', 'picked_up'),
-          orderBy('createdAt', 'desc')
-        )),
-        getDocs(query(ordersRef,
-          where('customerEmail', '==', user.email),
-          where('status', '==', 'picked_up'),
-          orderBy('createdAt', 'desc')
-        ))
+        getDocs(query(ordersRef, where('customerEmail', '==', user.email), where('status', '!=', 'picked_up'), orderBy('createdAt', 'desc'))),
+        getDocs(query(ordersRef, where('customerEmail', '==', user.email), where('status', '==', 'picked_up'), orderBy('createdAt', 'desc')))
       ]);
 
       const mapDocs = (snapshot: any) => snapshot.docs.map((doc: any) => ({
@@ -166,153 +92,154 @@ const ProfileScreen = () => {
         createdAt: doc.data().createdAt?.toDate() || new Date()
       }));
 
-      setOrders({
-        ongoing: mapDocs(ongoing),
-        history: mapDocs(history)
-      });
+      setOrders({ ongoing: mapDocs(ongoing), history: mapDocs(history) });
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching orders:', error);
     }
   };
 
   const OrderCard = ({ order }: { order: Order }) => (
-    <View style={[styles.card]}>
-      <View style={styles.cardHeader}>
-        <View style={styles.restaurantInfo}>
-          <ThemedText style={styles.restaurantName}>{order.shopName}</ThemedText>
-          <ThemedText style={styles.date}>
-            {order.createdAt.toLocaleDateString('en-US', { 
-              year: 'numeric', month: 'short', day: 'numeric'
+    <View style={s.card}>
+      <View style={s.cardHeader}>
+        <Image 
+          source={{ uri: 'https://via.placeholder.com/50' }}
+          style={s.shopImage}
+        />
+        <View style={s.orderInfo}>
+          <View style={s.orderTopRow}>
+            <ThemedText style={s.restaurantName}>{order.shopName}</ThemedText>
+            <View style={[s.statusBadge, { backgroundColor: `${STATUS_COLORS[order.status]}15` }]}>
+              <ThemedText style={[s.statusText, { color: STATUS_COLORS[order.status] }]}>
+                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+              </ThemedText>
+            </View>
+          </View>
+          <ThemedText style={s.orderDate}>
+            Ordered on {order.createdAt.toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'short', 
+              day: 'numeric' 
             })}
           </ThemedText>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: `${STATUS_COLORS[order.status]}15` }]}>
-          <ThemedText style={[styles.statusText, { color: STATUS_COLORS[order.status] }]}>
-            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-          </ThemedText>
-        </View>
       </View>
-      
-      <View style={styles.itemsList}>
+
+      <View style={s.itemsList}>
         {order.items.map((item, i) => (
-          <ThemedText key={i} style={styles.item}>
-            {item.quantity}x {item.name}
-          </ThemedText>
+          <View key={i} style={s.itemRow}>
+            <ThemedText style={s.itemName}>
+              {item.name}
+            </ThemedText>
+            <View style={s.itemDetails}>
+              <ThemedText style={s.itemQuantity}>x{item.quantity}</ThemedText>
+              <ThemedText style={s.itemPrice}>₹{item.price.toFixed(2)}</ThemedText>
+            </View>
+          </View>
         ))}
       </View>
-      
-      <View style={styles.cardFooter}>
-        <ThemedText style={styles.totalLabel}>Order Total</ThemedText>
-        <ThemedText style={styles.amount}>₹{order.totalAmount.toFixed(2)}</ThemedText>
+
+      <View style={s.cardFooter}>
+        <View style={s.totalSection}>
+          <ThemedText style={s.totalLabel}>Total</ThemedText>
+          <ThemedText style={s.totalAmount}>₹{order.totalAmount.toFixed(2)}</ThemedText>
+        </View>
+        <TouchableOpacity style={s.viewDetailsButton}>
+          <ThemedText style={s.viewDetailsText}>View Details</ThemedText>
+        </TouchableOpacity>
       </View>
     </View>
   );
 
-  const level = getUserLevel(orders.ongoing.length + orders.history.length);
+  const level = Object.entries(LEVELS).find(([_, data]) => (orders.ongoing.length + orders.history.length) >= data.threshold)?.[1] || LEVELS.BRONZE;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar
-        barStyle={Platform.OS === 'ios' ? 'dark-content' : 'light-content'}
-        backgroundColor={theme.bg}
-      />
-      <ThemedView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={[styles.backButton, Platform.OS === 'ios' && styles.iosButton]} 
-            onPress={() => router.back()}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1C1C1C" />
+    <SafeAreaView style={s.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <ThemedView style={s.container}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.iconButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#FF6B00" />
           </TouchableOpacity>
-          <ThemedText style={styles.headerTitle}>Profile</ThemedText>
-          <TouchableOpacity 
-            style={[styles.logoutButton, Platform.OS === 'ios' && styles.iosButton]}
-            onPress={() => auth.signOut().then(() => router.replace('/(auth)/welcome'))}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="log-out-outline" size={24} color="#E23744" />
+          <TouchableOpacity style={s.iconButton} onPress={() => auth.signOut().then(() => router.replace('/(auth)/welcome'))}>
+            <Ionicons name="log-out-outline" size={24} color="#FF6B00" />
           </TouchableOpacity>
         </View>
 
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
+        <ScrollView
+          style={s.scrollView}
           refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={async () => {
-                setRefreshing(true);
-                await fetchOrders();
-                setRefreshing(false);
-              }}
-              tintColor="#E23744"
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={fetchOrders} tintColor="#FF6B00" />
           }
         >
-          <View style={styles.profileSection}>
-            <View style={styles.profileHeader}>
-              <TouchableOpacity 
-                onPress={pickImage}
-                disabled={uploading}
-                style={styles.avatarContainer}
-              >
+          <View style={s.profileSection}>
+            <ImageBackground 
+              source={{ uri: user?.photoURL || 'https://via.placeholder.com/500x200' }}
+              style={s.coverPhoto}
+              imageStyle={s.coverPhotoImage}
+            >
+              <View style={s.coverPhotoOverlay} />
+              <TouchableOpacity onPress={handleImagePick} disabled={uploading} style={s.avatarContainer}>
                 {user?.photoURL ? (
-                  <>
-                    <Image source={{ uri: user.photoURL }} style={styles.avatar} />
-                    <View style={styles.uploadOverlay}>
-                      <Ionicons name="camera" size={20} color="#FFFFFF" />
-                    </View>
-                  </>
+                  <Image source={{ uri: user.photoURL }} style={s.avatar} />
                 ) : (
-                  <View style={styles.avatarFallback}>
-                    <Ionicons name="person" size={40} color="#E23744" />
-                    <View style={styles.uploadOverlay}>
-                      <Ionicons name="camera" size={20} color="#FFFFFF" />
-                    </View>
+                  <View style={s.avatarFallback}>
+                    <Ionicons name="person" size={40} color="#FF6B00" />
                   </View>
                 )}
+                <View style={s.uploadOverlay}>
+                  <Ionicons name="camera" size={20} color="#FFFFFF" />
+                </View>
                 {uploading && (
-                  <View style={styles.uploadingOverlay}>
-                    <ThemedText style={styles.uploadingText}>Uploading...</ThemedText>
+                  <View style={s.uploadingOverlay}>
+                    <ThemedText style={s.uploadingText}>Uploading...</ThemedText>
                   </View>
                 )}
               </TouchableOpacity>
-              <View style={styles.userInfo}>
-                <ThemedText style={styles.userName}>{user?.email || 'Foodie'}</ThemedText>
-                <ThemedText style={styles.userEmail}>{'Hi Fostian'}</ThemedText>
+            </ImageBackground>
+
+            <View style={s.profileInfo}>
+              <View style={s.nameSection}>
+                <ThemedText style={s.userName}>{user?.email || 'Foodie'}</ThemedText>
+                <View style={s.levelBadge}>
+                  <Ionicons name={level.icon as any} size={16} color={level.color} />
+                  <ThemedText style={s.levelText}>{level.label}</ThemedText>
+                </View>
               </View>
+              <ThemedText style={s.userEmail}>{'Member since 2024'}</ThemedText>
             </View>
 
-            <View style={styles.statsCard}>
-              <View style={styles.levelInfo}>
-                <View style={[styles.levelIcon, { backgroundColor: `${level.color}15` }]}>
-                  <Ionicons name={level.icon as any} size={24} color={level.color} />
-                </View>
-                <View>
-                  <ThemedText style={styles.levelLabel}>{level.label}</ThemedText>
-                  <ThemedText style={styles.orderCount}>
-                    {orders.ongoing.length + orders.history.length} orders
-                  </ThemedText>
-                </View>
+            <View style={s.statsGrid}>
+              <View style={s.statItem}>
+                <ThemedText style={s.statNumber}>{orders.ongoing.length + orders.history.length}</ThemedText>
+                <ThemedText style={s.statLabel}>Total Orders</ThemedText>
+              </View>
+              <View style={s.statDivider} />
+              <View style={s.statItem}>
+                <ThemedText style={s.statNumber}>{orders.ongoing.length}</ThemedText>
+                <ThemedText style={s.statLabel}>Active Orders</ThemedText>
+              </View>
+              <View style={s.statDivider} />
+              <View style={s.statItem}>
+                <ThemedText style={s.statNumber}>{orders.history.length}</ThemedText>
+                <ThemedText style={s.statLabel}>Completed</ThemedText>
               </View>
             </View>
           </View>
 
-          <View style={styles.ordersSection}>
+          <View style={s.ordersSection}>
             {orders.ongoing.length > 0 && (
               <>
-                <ThemedText style={styles.sectionTitle}>Active Orders</ThemedText>
+                <ThemedText style={s.sectionTitle}>Active Orders</ThemedText>
                 {orders.ongoing.map(order => <OrderCard key={order.id} order={order} />)}
               </>
             )}
 
-            <ThemedText style={styles.sectionTitle}>Order History</ThemedText>
+            <ThemedText style={s.sectionTitle}>Order History</ThemedText>
             {orders.history.length ? 
               orders.history.map(order => <OrderCard key={order.id} order={order} />) : 
-              <View style={styles.emptyState}>
-                <Ionicons name="receipt-outline" size={48} color="#B5B5B5" />
-                <ThemedText style={styles.emptyText}>No orders yet</ThemedText>
+              <View style={s.emptyState}>
+                <Ionicons name="receipt-outline" size={48} color="#FFB700" />
+                <ThemedText style={s.emptyText}>No orders yet</ThemedText>
               </View>
             }
           </View>
@@ -324,72 +251,63 @@ const ProfileScreen = () => {
   );
 };
 
-
-
-const styles = StyleSheet.create({
-  safe: { 
-    flex: 1, 
-    backgroundColor: '#FFFFFF' 
-  },
+const s = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  container: { 
+  container: {
     flex: 1,
     backgroundColor: '#FFFFFF'
   },
   scrollView: {
-    flex: 1,
-  },
-  scrollViewContent: {
-    flexGrow: 1,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 0,
+    flex: 1
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#FFB700'
+    borderBottomColor: '#EAEAEA'
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FF6B00'
+  coverPhoto: {
+    height: 120,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: 40,
   },
-  backButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFF5E6'
+  coverPhotoImage: {
+    opacity: 0.3, // Makes the background image slightly faded
   },
-  logoutButton: {
+  coverPhotoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)', // Adds an orange tint
+    zIndex: 1,
+  },
+  iconButton: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: '#FFF5E6'
   },
   profileSection: {
-    padding: 16,
-    backgroundColor: '#FFFFFF'
+    backgroundColor: '#FFFFFF',
   },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24
-  },
+  
   avatarContainer: {
-    position: 'relative',
-    marginRight: 16
+    position: 'absolute',
+    bottom: -40,
+    alignSelf: 'center',
+    zIndex: 2,
   },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    borderWidth: 3,
-    borderColor: '#FF8500'
+    borderWidth: 4,
+    borderColor: '#FFFFFF'
   },
   avatarFallback: {
     width: 80,
@@ -398,9 +316,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF5E6',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
-    borderWidth: 3,
-    borderColor: '#FF8500'
+    borderWidth: 4,
+    borderColor: '#FFFFFF'
   },
   uploadOverlay: {
     position: 'absolute',
@@ -419,7 +336,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 107, 0, 0.7)',
+    backgroundColor: 'rgba(255,107,0,0.7)',
     borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center'
@@ -429,155 +346,202 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600'
   },
-  userInfo: {
-    flex: 1
+  profileInfo: {
+    paddingTop: 48,
+    paddingHorizontal: 16,
+    alignItems: 'center'
+  },
+  nameSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4
   },
   userName: {
     fontSize: 24,
     fontWeight: '700',
     color: '#000000',
-    marginBottom: 4
+    marginRight: 8
+  },
+  levelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5E6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12
+  },
+  levelText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF6B00',
+    marginLeft: 4
   },
   userEmail: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#FF6B00'
+    color: '#666666',
+    marginBottom: 16
   },
-  statsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#FFD000'
-  },
-  levelInfo: {
+  statsGrid: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#EAEAEA'
+  },
+  statItem: {
+    flex: 1,
     alignItems: 'center'
   },
-  levelIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    borderWidth: 1,
-    borderColor: '#FFD000'
+  statDivider: {
+    width: 1,
+    backgroundColor: '#EAEAEA',
+    marginVertical: 8
   },
-  levelLabel: {
-    fontSize: 16,
+  statNumber: {
+    fontSize: 24,
     fontWeight: '700',
-    color: '#FF6B00',
+    color: '#000000',
     marginBottom: 4
   },
-  orderCount: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#FF8500'
+  statLabel: {
+    fontSize: 12,
+    color: '#666666'
   },
   ordersSection: {
-    padding: 16
+    padding: 16,
+    backgroundColor: '#FFFFFF'
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FF6B00',
-    marginBottom: 16
+    color: '#000000',
+    marginBottom: 16,
+    marginTop: 8
   },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#FFD000'
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     marginBottom: 16
   },
-  iosButton: {
-    opacity: 0.8,
+  shopImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12
   },
-  restaurantInfo: {
+  orderInfo: {
     flex: 1
+  },
+  orderTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4
   },
   restaurantName: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 4
-  },
-  date: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#FF8500'
+    fontWeight: '600',
+    color: '#000000'
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FFD000'
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600'
   },
-  itemsList: {
-    marginBottom: 16
+  orderDate: {
+    fontSize: 12,
+    color: '#666666'
   },
-  item: {
+  itemsList: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#EAEAEA',
+    paddingVertical: 12
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  itemName: {
     fontSize: 14,
-    fontWeight: '500',
     color: '#000000',
-    marginBottom: 8,
-    paddingLeft: 8,
-    borderLeftWidth: 2,
-    borderLeftColor: '#FFD000'
+    flex: 1
+  },
+  itemDetails: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  itemQuantity: {
+    fontSize: 14,
+    color: '#666666',
+    marginRight: 8
+  },
+  itemPrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000000'
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#FFD000'
+    marginTop: 12
+  },
+  totalSection: {
+    flexDirection: 'row',
+    alignItems: 'center'
   },
   totalLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#000000'
+    color: '#666666',
+    marginRight: 8
   },
-  amount: {
+  totalAmount: {
     fontSize: 16,
     fontWeight: '700',
+    color: '#000000'
+  },
+  viewDetailsButton: {
+    backgroundColor: '#FFF5E6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8
+  },
+  viewDetailsText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#FF6B00'
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
-    backgroundColor: '#FFF5E6',
-    borderRadius: 12,
-    marginTop: 8
+    justifyContent: 'center',
+    padding: 32
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FF6B00',
-    marginTop: 12
+    color: '#666666',
+    marginTop: 8
   }
 });
 
